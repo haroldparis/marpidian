@@ -19,7 +19,7 @@ export function mergeSettings(saved: Partial<MarpidianSettings>): MarpidianSetti
   }
 }
 
-import { App, Modal, PluginSettingTab, Setting, setIcon } from 'obsidian'
+import { App, Modal, Notice, PluginSettingTab, Setting, setIcon } from 'obsidian'
 import type MarpidianPlugin from './main'
 
 class ConfirmDeleteModal extends Modal {
@@ -122,10 +122,15 @@ export class MarpidianSettingTab extends PluginSettingTab {
             new ConfirmDeleteModal(this.plugin.app, name, async () => {
               try {
                 await this.plugin.app.vault.adapter.remove(entry.path)
-              } catch {
-                // fichier déjà absent — ok
+              } catch (e: any) {
+                if (!e?.message?.includes('ENOENT') && !e?.message?.includes('no such file')) {
+                  new Notice(`[Marpidian] Erreur lors de la suppression : ${e?.message ?? e}`)
+                  return
+                }
               }
-              this.plugin.settings.themes.splice(index, 1)
+              this.plugin.settings.themes = this.plugin.settings.themes.filter(
+                (t) => t.path !== entry.path
+              )
               await this.plugin.saveSettings(true)
               this.display()
             }).open()
