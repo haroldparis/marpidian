@@ -97,20 +97,32 @@ export default class MarpidianPlugin extends Plugin {
       new Notice(`[Marpidian] Thème "${themeName}" importé.`)
     }
 
+    document.body.appendChild(input)
     input.click()
+    document.body.removeChild(input)
   }
 
-  revealThemesFolder(): void {
+  async revealThemesFolder(): Promise<void> {
     const adapter = this.app.vault.adapter as any
     const basePath = adapter.basePath ?? adapter.getBasePath?.() ?? ''
+    if (!basePath) {
+      new Notice('[Marpidian] Impossible de déterminer le chemin du vault.')
+      return
+    }
+    await this.app.vault.adapter.mkdir(this.settings.themesFolder)
     const absPath = `${basePath}/${this.settings.themesFolder}`
     shell.showItemInFolder(absPath)
   }
 
-  openThemeInEditor(themeRelativePath: string): void {
+  async openThemeInEditor(themeRelativePath: string): Promise<void> {
     const adapter = this.app.vault.adapter as any
     const basePath = adapter.basePath ?? adapter.getBasePath?.() ?? ''
-    shell.openPath(`${basePath}/${themeRelativePath}`)
+    if (!basePath) {
+      new Notice('[Marpidian] Impossible de déterminer le chemin du vault.')
+      return
+    }
+    const error = await shell.openPath(`${basePath}/${themeRelativePath}`)
+    if (error) new Notice(`[Marpidian] Impossible d'ouvrir le fichier : ${error}`)
   }
 
   private async getInstalledThemeNames(): Promise<string[]> {
