@@ -1,8 +1,9 @@
-import { Plugin, MarkdownView } from 'obsidian'
+import { Plugin, MarkdownView, Notice } from 'obsidian'
+import { shell } from 'electron'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
 import { MarpidianSettingTab } from './settings'
 import { Themes } from './Themes'
-import { detectMarpDocument, debounce } from './utils'
+import { detectMarpDocument, debounce, extractThemeName } from './utils'
 import { mergeSettings } from './settings'
 import type { MarpidianSettings } from './settings'
 
@@ -56,6 +57,74 @@ export default class MarpidianPlugin extends Plugin {
       const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
       if (activeView) this.updatePreview(activeView.editor.getValue())
     }
+  }
+
+  async importTheme(): Promise<void> {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.css'
+
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+
+      const css = await file.text()
+      const themeName = extractThemeName(css)
+
+      if (!themeName) {
+        new Notice('[Marpidian] Ce fichier CSS ne contient pas de directive @theme.')
+        return
+      }
+
+      const existingNames = await this.getInstalledThemeNames()
+      if (existingNames.includes(themeName)) {
+        new Notice(`[Marpidian] Un thème "${themeName}" est déjà installé.`)
+        return
+      }
+
+      const destPath = `${this.settings.themesFolder}/${file.name}`
+      const existingPaths = this.settings.themes.map(t => t.path)
+      if (existingPaths.includes(destPath)) {
+        new Notice(`[Marpidian] Le fichier "${file.name}" est déjà importé.`)
+        return
+      }
+
+      await this.app.vault.adapter.mkdir(this.settings.themesFolder)
+      await this.app.vault.adapter.write(destPath, css)
+
+      this.settings.themes.push({ path: destPath })
+      await this.saveSettings(true)
+      new Notice(`[Marpidian] Thème "${themeName}" importé.`)
+    }
+
+    input.click()
+  }
+
+  revealThemesFolder(): void {
+    const adapter = this.app.vault.adapter as any
+    const basePath = adapter.basePath ?? adapter.getBasePath?.() ?? ''
+    const absPath = `${basePath}/${this.settings.themesFolder}`
+    shell.showItemInFolder(absPath)
+  }
+
+  openThemeInEditor(themeRelativePath: string): void {
+    const adapter = this.app.vault.adapter as any
+    const basePath = adapter.basePath ?? adapter.getBasePath?.() ?? ''
+    shell.openPath(`${basePath}/${themeRelativePath}`)
+  }
+
+  private async getInstalledThemeNames(): Promise<string[]> {
+    const names: string[] = []
+    for (const entry of this.settings.themes) {
+      try {
+        const css = await this.app.vault.adapter.read(entry.path)
+        const name = extractThemeName(css)
+        if (name) names.push(name)
+      } catch {
+        // fichier manquant — ignoré
+      }
+    }
+    return names
   }
 
   private async loadThemes(): Promise<void> {
