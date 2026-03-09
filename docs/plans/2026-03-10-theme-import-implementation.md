@@ -326,9 +326,54 @@ git commit -m "feat: add importTheme, revealThemesFolder, openThemeInEditor"
 **Files:**
 - Modify: `src/settings.ts`
 
-Remplacer entièrement la classe `MarpidianSettingTab` dans `src/settings.ts` :
+### Step 1 : Ajouter `ConfirmDeleteModal` avant `MarpidianSettingTab`
 
-### Step 1 : Remplacer `MarpidianSettingTab.display()`
+Ce modal de confirmation est un `Modal` Obsidian natif — même pattern que les confirmations destructives d'Obsidian.
+
+```typescript
+import { App, Modal, Setting, PluginSettingTab, setIcon } from 'obsidian'
+
+class ConfirmDeleteModal extends Modal {
+  private themeName: string
+  private onConfirm: () => void
+
+  constructor(app: App, themeName: string, onConfirm: () => void) {
+    super(app)
+    this.themeName = themeName
+    this.onConfirm = onConfirm
+  }
+
+  onOpen(): void {
+    const { contentEl } = this
+    contentEl.createEl('h3', { text: 'Supprimer le thème' })
+    contentEl.createEl('p', {
+      text: `Supprimer "${this.themeName}" et son fichier CSS du vault ?`,
+    })
+
+    new Setting(contentEl)
+      .addButton((btn) =>
+        btn
+          .setButtonText('Annuler')
+          .onClick(() => this.close())
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText('Supprimer')
+          .setWarning()
+          .onClick(() => {
+            this.close()
+            this.onConfirm()
+          })
+      )
+  }
+
+  onClose(): void {
+    this.contentEl.empty()
+  }
+}
+```
+
+### Step 2 : Remplacer `MarpidianSettingTab.display()`
 
 ```typescript
 export class MarpidianSettingTab extends PluginSettingTab {
@@ -388,15 +433,17 @@ export class MarpidianSettingTab extends PluginSettingTab {
           btn.setTooltip('Supprimer')
           setIcon(btn.buttonEl, 'trash')
           btn.setWarning()
-          btn.onClick(async () => {
-            try {
-              await this.plugin.app.vault.adapter.remove(entry.path)
-            } catch {
-              // fichier déjà absent — ok
-            }
-            this.plugin.settings.themes.splice(index, 1)
-            await this.plugin.saveSettings(true)
-            this.display()
+          btn.onClick(() => {
+            new ConfirmDeleteModal(this.plugin.app, name, async () => {
+              try {
+                await this.plugin.app.vault.adapter.remove(entry.path)
+              } catch {
+                // fichier déjà absent — ok
+              }
+              this.plugin.settings.themes.splice(index, 1)
+              await this.plugin.saveSettings(true)
+              this.display()
+            }).open()
           })
         })
     })
@@ -411,18 +458,17 @@ export class MarpidianSettingTab extends PluginSettingTab {
   }
 
   private getThemeDisplayName(path: string): string {
-    // Extrait le nom du fichier comme fallback (nom CSS peut ne pas encore être en cache)
     return path.split('/').pop()?.replace(/\.css$/, '') ?? path
   }
 }
 ```
 
-Ajouter l'import manquant en haut du fichier (après les imports existants) :
+L'import en haut de `settings.ts` devient :
 ```typescript
-import { setIcon } from 'obsidian'
+import { App, Modal, PluginSettingTab, Setting, setIcon } from 'obsidian'
 ```
 
-### Step 2 : Vérifier que les tests passent
+### Step 3 : Vérifier que les tests passent
 
 ```bash
 npm test
@@ -430,11 +476,11 @@ npm test
 
 Expected: PASS — aucune régression.
 
-### Step 3 : Commit
+### Step 4 : Commit
 
 ```bash
 git add src/settings.ts
-git commit -m "feat: refactor settings tab with import/reveal/edit UI"
+git commit -m "feat: refactor settings tab with import/reveal/edit/confirm-delete UI"
 ```
 
 ---
