@@ -7,7 +7,7 @@ const VAULT_PLUGIN_PATH =
 
 const isWatch = process.argv.includes('--watch')
 
-esbuild.build({
+const buildOptions = {
   entryPoints: ['src/main.ts'],
   bundle: true,
   external: [
@@ -20,7 +20,12 @@ esbuild.build({
   format: 'cjs',
   platform: 'browser',
   outfile: `${VAULT_PLUGIN_PATH}/main.js`,
-  watch: isWatch,
   sourcemap: isWatch ? 'inline' : false,
   logLevel: 'info',
-})
+}
+
+if (isWatch) {
+  esbuild.context(buildOptions).then((ctx) => ctx.watch())
+} else {
+  esbuild.build(buildOptions)
+}
