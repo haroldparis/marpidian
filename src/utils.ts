@@ -21,3 +21,12 @@ export function debounce<T extends (...args: any[]) => void>(
     timer = setTimeout(() => fn(...args), delay)
   }
 }
+
+/**
+ * Extracts the theme name from a Marp CSS file.
+ * Returns null if no @theme directive is found.
+ */
+export function extractThemeName(css: string): string | null {
+  const match = css.match(/\/\*\s*@theme\s+(\S+)/)
+  return match ? match[1] : null
+}

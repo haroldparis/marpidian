@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { detectMarpDocument, debounce } from './utils'
+import { detectMarpDocument, debounce, extractThemeName } from './utils'
 
 describe('detectMarpDocument', () => {
   it('retourne true si marp: true est dans le frontmatter', () => {
@@ -63,5 +63,27 @@ describe('debounce', () => {
     vi.advanceTimersByTime(100)
 
     expect(fn).toHaveBeenCalledWith('hello', 42)
+  })
+})
+
+describe('extractThemeName', () => {
+  it('extrait le nom depuis /* @theme name */', () => {
+    const css = '/* @theme einstein */\nsection { color: red; }'
+    expect(extractThemeName(css)).toBe('einstein')
+  })
+
+  it('retourne null si pas de directive @theme', () => {
+    const css = 'section { color: red; }'
+    expect(extractThemeName(css)).toBeNull()
+  })
+
+  it('tolère les espaces autour du nom', () => {
+    const css = '/*  @theme  my-theme  */\nsection {}'
+    expect(extractThemeName(css)).toBe('my-theme')
+  })
+
+  it('extrait uniquement le premier mot du nom', () => {
+    const css = '/* @theme my-theme v2 */\nsection {}'
+    expect(extractThemeName(css)).toBe('my-theme')
   })
 })
