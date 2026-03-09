@@ -19,8 +19,47 @@ export function mergeSettings(saved: Partial<MarpidianSettings>): MarpidianSetti
   }
 }
 
-import { App, PluginSettingTab, Setting } from 'obsidian'
+import { App, Modal, PluginSettingTab, Setting, setIcon } from 'obsidian'
 import type MarpidianPlugin from './main'
+
+class ConfirmDeleteModal extends Modal {
+  private themeName: string
+  private onConfirm: () => void
+
+  constructor(app: App, themeName: string, onConfirm: () => void) {
+    super(app)
+    this.themeName = themeName
+    this.onConfirm = onConfirm
+  }
+
+  onOpen(): void {
+    const { contentEl } = this
+    contentEl.createEl('h3', { text: 'Supprimer le thème' })
+    contentEl.createEl('p', {
+      text: `Supprimer "${this.themeName}" et son fichier CSS du vault ?`,
+    })
+
+    new Setting(contentEl)
+      .addButton((btn) =>
+        btn
+          .setButtonText('Annuler')
+          .onClick(() => this.close())
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText('Supprimer')
+          .setWarning()
+          .onClick(() => {
+            this.close()
+            this.onConfirm()
+          })
+      )
+  }
+
+  onClose(): void {
+    this.contentEl.empty()
+  }
+}
 
 export class MarpidianSettingTab extends PluginSettingTab {
   plugin: MarpidianPlugin
@@ -33,49 +72,77 @@ export class MarpidianSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this
     containerEl.empty()
-    containerEl.createEl('h2', { text: 'Marpidian — settings' })
+    containerEl.createEl('h2', { text: 'Marpidian' })
 
-    containerEl.createEl('h3', { text: 'Themes' })
-    containerEl.createEl('p', {
-      text: 'Chemin relatif depuis la racine du vault.',
-      cls: 'setting-item-description',
-    })
+    // — Dossier des thèmes —
+    new Setting(containerEl)
+      .setName('Dossier des thèmes')
+      .setDesc('Chemin relatif depuis la racine du vault.')
+      .addText((text) =>
+        text
+          .setPlaceholder('.marpidian')
+          .setValue(this.plugin.settings.themesFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.themesFolder = value.trim() || '.marpidian'
+            await this.plugin.saveSettings(false)
+          })
+      )
+      .addButton((btn) => {
+        btn.setTooltip('Révéler dans le gestionnaire de fichiers')
+        setIcon(btn.buttonEl, 'folder-open')
+        btn.onClick(() => this.plugin.revealThemesFolder())
+      })
+
+    // — Thèmes installés —
+    containerEl.createEl('h3', { text: 'Thèmes installés' })
+
+    if (this.plugin.settings.themes.length === 0) {
+      containerEl.createEl('p', {
+        text: 'Aucun thème installé.',
+        cls: 'setting-item-description',
+      })
+    }
 
     this.plugin.settings.themes.forEach((entry, index) => {
-      const row = containerEl.createDiv({ cls: 'marpidian-theme-row' })
+      const name = this.getThemeDisplayName(entry.path)
 
-      new Setting(row)
-        .setName(`Thème ${index + 1}`)
-        .addText((text) =>
-          text
-            .setPlaceholder('themes/mon-theme.css')
-            .setValue(entry.path)
-            .onChange(async (value) => {
-              this.plugin.settings.themes[index].path = value
-              await this.plugin.saveSettings()
-            })
-        )
-        .addButton((btn) =>
-          btn
-            .setButtonText('Supprimer')
-            .setWarning()
-            .onClick(async () => {
+      new Setting(containerEl)
+        .setName(name)
+        .setDesc(entry.path)
+        .addButton((btn) => {
+          btn.setTooltip("Ouvrir dans l'éditeur")
+          setIcon(btn.buttonEl, 'pencil')
+          btn.onClick(() => this.plugin.openThemeInEditor(entry.path))
+        })
+        .addButton((btn) => {
+          btn.setTooltip('Supprimer')
+          setIcon(btn.buttonEl, 'trash')
+          btn.setWarning()
+          btn.onClick(() => {
+            new ConfirmDeleteModal(this.plugin.app, name, async () => {
+              try {
+                await this.plugin.app.vault.adapter.remove(entry.path)
+              } catch {
+                // fichier déjà absent — ok
+              }
               this.plugin.settings.themes.splice(index, 1)
-              await this.plugin.saveSettings()
+              await this.plugin.saveSettings(true)
               this.display()
-            })
-        )
+            }).open()
+          })
+        })
     })
 
+    // — Import —
     new Setting(containerEl).addButton((btn) =>
       btn
-        .setButtonText('Ajouter un thème')
+        .setButtonText('Importer un thème')
         .setCta()
-        .onClick(async () => {
-          this.plugin.settings.themes.push({ path: '' })
-          await this.plugin.saveSettings()
-          this.display()
-        })
+        .onClick(() => this.plugin.importTheme())
     )
+  }
+
+  private getThemeDisplayName(path: string): string {
+    return path.split('/').pop()?.replace(/\.css$/, '') ?? path
   }
 }

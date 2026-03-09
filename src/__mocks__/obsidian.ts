@@ -1,3 +1,18 @@
+export class Modal {
+  app: App
+  contentEl: HTMLElement
+  constructor(app: App) {
+    this.app = app
+    this.contentEl = document.createElement('div')
+  }
+  open(): void {}
+  close(): void {}
+  onOpen(): void {}
+  onClose(): void {}
+}
+
+export function setIcon(_el: HTMLElement, _icon: string): void {}
+
 export class Plugin {
   app: App
   manifest: any
@@ -64,7 +79,7 @@ export interface Vault {
   read(file: TFile): Promise<string>
   on(event: string, cb: (...args: any[]) => any): EventRef
   offref(ref: EventRef): void
-  adapter: { read(path: string): Promise<string> }
+  adapter: { read(path: string): Promise<string>; remove(path: string): Promise<void> }
 }
 
 export interface Workspace {
