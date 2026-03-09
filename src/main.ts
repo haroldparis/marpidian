@@ -73,6 +73,8 @@ export default class MarpidianPlugin extends Plugin {
     if (detectMarpDocument(content)) {
       await this.openPreview()
       this.updatePreview(content)
+    } else {
+      this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => leaf.detach())
     }
   }
 
