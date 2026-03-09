@@ -51,7 +51,11 @@ export default class MarpidianPlugin extends Plugin {
 
   async saveSettings(reloadThemes = true): Promise<void> {
     await this.saveData(this.settings)
-    if (reloadThemes) await this.loadThemes()
+    if (reloadThemes) {
+      await this.loadThemes()
+      const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
+      if (activeView) this.updatePreview(activeView.editor.getValue())
+    }
   }
 
   private async loadThemes(): Promise<void> {
