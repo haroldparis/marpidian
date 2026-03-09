@@ -1,6 +1,5 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian'
 import type { Themes } from './Themes'
-import { debounce } from './utils'
 
 export const VIEW_TYPE_MARP = 'marpidian-preview'
 
@@ -8,8 +7,6 @@ export class MarpPreviewView extends ItemView {
   private themes: Themes
   private iframe: HTMLIFrameElement | null = null
   private currentMarkdown = ''
-
-  private scheduleRender = debounce(() => this.render(), 300)
 
   constructor(leaf: WorkspaceLeaf, themes: Themes) {
     super(leaf)
@@ -48,7 +45,7 @@ export class MarpPreviewView extends ItemView {
 
   update(markdown: string): void {
     this.currentMarkdown = markdown
-    this.scheduleRender()
+    this.render()
   }
 
   private render(): void {

@@ -49,16 +49,16 @@ export default class MarpidianPlugin extends Plugin {
     this.themes.dispose()
   }
 
-  async saveSettings(): Promise<void> {
+  async saveSettings(reloadThemes = true): Promise<void> {
     await this.saveData(this.settings)
-    await this.loadThemes()
+    if (reloadThemes) await this.loadThemes()
   }
 
   private async loadThemes(): Promise<void> {
     this.themes.dispose()
     for (const entry of this.settings.themes) {
       try {
-        await this.themes.loadTheme(entry.name, entry.path)
+        await this.themes.loadTheme(entry.path)
       } catch {
         console.warn('[Marpidian] Impossible de charger le thème:', entry.path)
       }

@@ -9,7 +9,7 @@ export class Themes {
     private onFileChange: (path: string, cb: () => void) => () => void
   ) {}
 
-  async loadTheme(name: string, path: string): Promise<void> {
+  async loadTheme(path: string): Promise<void> {
     const css = await this.readFile(path)
     this.cssCache.set(path, css)
 
@@ -25,8 +25,8 @@ export class Themes {
     for (const css of this.cssCache.values()) {
       try {
         marp.themeSet.add(css)
-      } catch {
-        // CSS invalide — ignoré silencieusement
+      } catch (e) {
+        console.warn('[Marpidian] CSS invalide ignoré:', e)
       }
     }
     return marp

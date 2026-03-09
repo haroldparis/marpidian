@@ -50,7 +50,7 @@ export class MarpidianSettingTab extends PluginSettingTab {
             .setValue(entry.name)
             .onChange(async (value) => {
               this.plugin.settings.themes[index].name = value
-              await this.plugin.saveSettings()
+              await this.plugin.saveSettings(false)
             })
         )
         .addText((text) =>

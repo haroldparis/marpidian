@@ -63,6 +63,8 @@ export interface App {
 export interface Vault {
   read(file: TFile): Promise<string>
   on(event: string, cb: (...args: any[]) => any): EventRef
+  offref(ref: EventRef): void
+  adapter: { read(path: string): Promise<string> }
 }
 
 export interface Workspace {
