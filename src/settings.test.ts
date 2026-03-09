@@ -1,23 +1,31 @@
 import { describe, it, expect } from 'vitest'
 import { DEFAULT_SETTINGS, mergeSettings } from './settings'
-import type { MarpidianSettings } from './settings'
 
 describe('DEFAULT_SETTINGS', () => {
   it('contient un tableau themes vide', () => {
     expect(DEFAULT_SETTINGS.themes).toEqual([])
   })
+
+  it('contient themesFolder à ".marpidian"', () => {
+    expect(DEFAULT_SETTINGS.themesFolder).toBe('.marpidian')
+  })
 })
 
 describe('mergeSettings', () => {
-  it('fusionne les settings partiels avec les défauts', () => {
-    const partial = { themes: [{ name: 'foo', path: 'themes/foo.css' }] }
+  it('fusionne les themes partiels avec les défauts', () => {
+    const partial = { themes: [{ path: 'themes/foo.css' }] }
     const result = mergeSettings(partial)
     expect(result.themes).toHaveLength(1)
-    expect(result.themes[0].name).toBe('foo')
+    expect(result.themes[0].path).toBe('themes/foo.css')
   })
 
   it('retourne les défauts si appelé sans argument', () => {
     expect(mergeSettings({})).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('préserve themesFolder si fourni', () => {
+    const result = mergeSettings({ themesFolder: 'custom/themes' })
+    expect(result.themesFolder).toBe('custom/themes')
   })
 
   it('ignore les clés inconnues', () => {

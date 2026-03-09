@@ -1,19 +1,21 @@
 export interface ThemeEntry {
-  name: string
   path: string
 }
 
 export interface MarpidianSettings {
   themes: ThemeEntry[]
+  themesFolder: string
 }
 
 export const DEFAULT_SETTINGS: MarpidianSettings = {
   themes: [],
+  themesFolder: '.marpidian',
 }
 
 export function mergeSettings(saved: Partial<MarpidianSettings>): MarpidianSettings {
   return {
     themes: Array.isArray(saved.themes) ? saved.themes : DEFAULT_SETTINGS.themes,
+    themesFolder: typeof saved.themesFolder === 'string' ? saved.themesFolder : DEFAULT_SETTINGS.themesFolder,
   }
 }
 
@@ -35,7 +37,7 @@ export class MarpidianSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h3', { text: 'Themes' })
     containerEl.createEl('p', {
-      text: 'Chemin relatif depuis la racine du vault. Format: nom → chemin/vers/theme.css',
+      text: 'Chemin relatif depuis la racine du vault.',
       cls: 'setting-item-description',
     })
 
@@ -44,15 +46,6 @@ export class MarpidianSettingTab extends PluginSettingTab {
 
       new Setting(row)
         .setName(`Thème ${index + 1}`)
-        .addText((text) =>
-          text
-            .setPlaceholder('nom')
-            .setValue(entry.name)
-            .onChange(async (value) => {
-              this.plugin.settings.themes[index].name = value
-              await this.plugin.saveSettings(false)
-            })
-        )
         .addText((text) =>
           text
             .setPlaceholder('themes/mon-theme.css')
@@ -79,7 +72,7 @@ export class MarpidianSettingTab extends PluginSettingTab {
         .setButtonText('Ajouter un thème')
         .setCta()
         .onClick(async () => {
-          this.plugin.settings.themes.push({ name: '', path: '' })
+          this.plugin.settings.themes.push({ path: '' })
           await this.plugin.saveSettings()
           this.display()
         })
