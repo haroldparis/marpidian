@@ -1,99 +1,113 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { Plugin, MarkdownView } from 'obsidian'
+import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
+import { MarpidianSettingTab } from './settings'
+import { Themes } from './Themes'
+import { detectMarpDocument, debounce } from './utils'
+import { mergeSettings } from './settings'
+import type { MarpidianSettings } from './settings'
 
-// Remember to rename these classes and interfaces!
+export default class MarpidianPlugin extends Plugin {
+  settings: MarpidianSettings
+  themes: Themes
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+  async onload(): Promise<void> {
+    const saved = await this.loadData()
+    this.settings = mergeSettings(saved ?? {})
 
-	async onload() {
-		await this.loadSettings();
+    this.themes = new Themes(
+      (path) => this.app.vault.adapter.read(path),
+      (path, cb) => {
+        const ref = this.app.vault.on('modify', (file) => {
+          if (file.path === path) cb()
+        })
+        return () => this.app.vault.offref(ref)
+      }
+    )
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+    await this.loadThemes()
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+    this.registerView(VIEW_TYPE_MARP, (leaf) => new MarpPreviewView(leaf, this.themes))
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+    this.addCommand({
+      id: 'toggle-marp-preview',
+      name: 'Toggle Marp preview',
+      callback: () => this.togglePreview(),
+    })
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			}
-		});
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', () => this.onActiveLeafChange())
+    )
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+    this.registerEvent(
+      this.app.workspace.on('editor-change', debounce(() => this.onEditorChange(), 300))
+    )
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
+    this.addSettingTab(new MarpidianSettingTab(this.app, this))
+  }
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+  async onunload(): Promise<void> {
+    this.themes.dispose()
+  }
 
-	}
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings)
+    await this.loadThemes()
+  }
 
-	onunload() {
-	}
+  private async loadThemes(): Promise<void> {
+    this.themes.dispose()
+    for (const entry of this.settings.themes) {
+      try {
+        await this.themes.loadTheme(entry.name, entry.path)
+      } catch {
+        console.warn('[Marpidian] Impossible de charger le thème:', entry.path)
+      }
+    }
+  }
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
-	}
+  private async onActiveLeafChange(): Promise<void> {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
+    if (!activeView) return
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
+    const content = activeView.editor.getValue()
+    if (detectMarpDocument(content)) {
+      await this.openPreview()
+      this.updatePreview(content)
+    }
+  }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+  private onEditorChange(): void {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
+    if (!activeView) return
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+    const content = activeView.editor.getValue()
+    if (!detectMarpDocument(content)) return
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
+    this.updatePreview(content)
+  }
+
+  private async openPreview(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP)
+    if (existing.length > 0) return
+
+    const leaf = this.app.workspace.getLeaf('split', 'vertical')
+    await leaf.setViewState({ type: VIEW_TYPE_MARP, active: false })
+  }
+
+  private async togglePreview(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP)
+    if (existing.length > 0) {
+      existing.forEach((leaf) => leaf.detach())
+    } else {
+      await this.openPreview()
+    }
+  }
+
+  private updatePreview(markdown: string): void {
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => {
+      if (leaf.view instanceof MarpPreviewView) {
+        leaf.view.update(markdown)
+      }
+    })
+  }
 }
