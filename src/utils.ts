@@ -5,7 +5,7 @@
 export function detectMarpDocument(markdown: string): boolean {
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!match) return false
-  return /^marp:\s*true\s*$/m.test(match[1])
+  return /^marp:\s*"?true"?\s*$/m.test(match[1])
 }
 
 /**

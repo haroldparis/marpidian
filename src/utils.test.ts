@@ -26,6 +26,16 @@ describe('detectMarpDocument', () => {
     const md = '---\nmarp:  true  \n---\n\n# Slide'
     expect(detectMarpDocument(md)).toBe(true)
   })
+
+  it('retourne true si marp: "true" (string — comportement Obsidian)', () => {
+    const md = '---\nmarp: "true"\n---\n\n# Slide'
+    expect(detectMarpDocument(md)).toBe(true)
+  })
+
+  it("retourne false si marp: \"false\" (string)", () => {
+    const md = '---\nmarp: "false"\n---\n\n# Note'
+    expect(detectMarpDocument(md)).toBe(false)
+  })
 })
 
 describe('debounce', () => {
