@@ -1,0 +1,10 @@
+{
+  "id": "marpidian",
+  "name": "Marpidian",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "State-of-the-art Marp integration for Obsidian. Live preview, custom themes, markdown-it plugins.",
+  "author": "Harold Paris",
+  "authorUrl": "https://github.com/haroldparis",
+  "isDesktopOnly": true
+}

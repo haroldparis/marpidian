@@ -1,0 +1,25 @@
+{
+  "name": "marpidian",
+  "version": "0.1.0",
+  "description": "State-of-the-art Marp integration for Obsidian",
+  "main": "main.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "node esbuild.config.js --watch",
+    "build": "node esbuild.config.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@marp-team/marp-core": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "tslib": "^2.6.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.6.0"
+  }
+}
