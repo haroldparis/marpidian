@@ -1,4 +1,4 @@
-import { Plugin, MarkdownView, Notice } from 'obsidian'
+import { Plugin, MarkdownView, Notice, TFile } from 'obsidian'
 import { spawnSync } from 'child_process'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
 import { MarpidianSettingTab } from './settings'
@@ -58,7 +58,7 @@ export default class MarpidianPlugin extends Plugin {
     if (reloadThemes) {
       await this.loadThemes()
       const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
-      if (activeView) this.updatePreview(activeView.editor.getValue())
+      if (activeView) this.updatePreview(activeView.editor.getValue(), activeView.file)
     }
   }
 
@@ -150,9 +150,10 @@ export default class MarpidianPlugin extends Plugin {
     if (!activeView) return
 
     const content = activeView.editor.getValue()
+    const file = activeView.file  // capturé avant le await pour éviter la race condition
     if (detectMarpDocument(content)) {
       await this.openPreview()
-      this.updatePreview(content)
+      this.updatePreview(content, file)
     } else {
       this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => leaf.detach())
     }
@@ -165,7 +166,7 @@ export default class MarpidianPlugin extends Plugin {
     const content = activeView.editor.getValue()
     if (!detectMarpDocument(content)) return
 
-    this.updatePreview(content)
+    this.updatePreview(content, activeView.file)
   }
 
   private async openPreview(): Promise<void> {
@@ -185,8 +186,7 @@ export default class MarpidianPlugin extends Plugin {
     }
   }
 
-  private updatePreview(markdown: string): void {
-    const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file ?? null
+  private updatePreview(markdown: string, file: TFile | null): void {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => {
       if (leaf.view instanceof MarpPreviewView) {
         leaf.view.update(markdown, file)
