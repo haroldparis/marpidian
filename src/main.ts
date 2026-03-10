@@ -89,6 +89,10 @@ export default class MarpidianPlugin extends Plugin {
           }
         })
       )
+
+      // Passe initiale au démarrage : peuple la preview si un fichier Marp
+      // était déjà actif quand Obsidian a été fermé (session restaurée).
+      void this.onActiveLeafChange()
     })
 
     this.addSettingTab(new MarpidianSettingTab(this.app, this))
