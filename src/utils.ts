@@ -40,3 +40,37 @@ export function getVaultBasePath(adapter: unknown): string {
   const a = adapter as { basePath?: string; getBasePath?: () => string }
   return a.basePath ?? a.getBasePath?.() ?? ''
 }
+
+/**
+ * Résout un chemin relatif href depuis fileDir (implémentation portable sans node:path).
+ */
+function resolveRelative(fileDir: string, href: string): string {
+  const segments = (fileDir + '/' + href).split('/').reduce<string[]>((acc, seg) => {
+    if (seg === '..') acc.pop()
+    else if (seg !== '' && seg !== '.') acc.push(seg)
+    return acc
+  }, [])
+  return '/' + segments.join('/')
+}
+
+/**
+ * Détecte les références d'images Markdown pointant hors du vault.
+ * Protège contre la divulgation de fichiers locaux via --allow-local-files.
+ * Note : les balises <img> HTML (avec Marp html:true) ne sont pas couvertes.
+ */
+export function hasOutOfVaultImageRef(
+  markdown: string,
+  vaultBase: string,
+  fileDir: string
+): boolean {
+  const imgRegex = /!\[.*?\]\(([^)\s]+)/g
+  let match: RegExpExecArray | null
+  while ((match = imgRegex.exec(markdown)) !== null) {
+    const href = match[1]
+    if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('data:')) continue
+    if (href.startsWith('/') || href.startsWith('file://') || href.startsWith('~')) return true
+    const resolved = resolveRelative(fileDir, href)
+    if (!resolved.startsWith(vaultBase + '/') && resolved !== vaultBase) return true
+  }
+  return false
+}

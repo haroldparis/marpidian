@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { ItemView, Notice, type TFile, type WorkspaceLeaf } from 'obsidian'
 import type { MarpidianSettings } from './settings'
 import type { Themes } from './Themes'
-import { getVaultBasePath } from './utils'
+import { getVaultBasePath, hasOutOfVaultImageRef } from './utils'
 
 function log(logFile: string, enabled: boolean, msg: string): void {
   if (!enabled) return
@@ -180,6 +180,17 @@ export class MarpPreviewView extends ItemView {
     }
 
     const { activeFile } = ctx
+
+    // Sécurité : bloquer l'export si le markdown référence des fichiers hors vault
+    // (protection contre la divulgation via --allow-local-files).
+    const fileDir = join(ctx.vaultBase, activeFile.parent?.path ?? '')
+    if (hasOutOfVaultImageRef(this.currentMarkdown, ctx.vaultBase, fileDir)) {
+      new Notice(
+        '[Marpidian] Export bloqué : référence à un fichier hors du vault détectée.'
+      )
+      return
+    }
+
     const outputDir = join(
       ctx.vaultBase,
       settings.exportDir,

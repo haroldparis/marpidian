@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { debounce, detectMarpDocument, extractThemeName } from './utils'
+import { debounce, detectMarpDocument, extractThemeName, hasOutOfVaultImageRef } from './utils'
 
 describe('detectMarpDocument', () => {
   it('retourne true si marp: true est dans le frontmatter', () => {
@@ -89,5 +89,46 @@ describe('extractThemeName', () => {
   it('extrait uniquement le premier mot du nom', () => {
     const css = '/* @theme my-theme v2 */\nsection {}'
     expect(extractThemeName(css)).toBe('my-theme')
+  })
+})
+
+describe('hasOutOfVaultImageRef', () => {
+  const vault = '/home/user/vault'
+  const fileDir = '/home/user/vault/slides'
+
+  it('retourne false pour une image relative dans le vault', () => {
+    expect(hasOutOfVaultImageRef('![](image.png)', vault, fileDir)).toBe(false)
+  })
+
+  it('retourne false pour une image dans un sous-dossier du vault', () => {
+    expect(hasOutOfVaultImageRef('![](assets/photo.png)', vault, fileDir)).toBe(false)
+  })
+
+  it('retourne false pour une URL http', () => {
+    expect(hasOutOfVaultImageRef('![](https://example.com/img.png)', vault, fileDir)).toBe(false)
+  })
+
+  it('retourne false pour une data URL', () => {
+    expect(hasOutOfVaultImageRef('![](data:image/png;base64,abc)', vault, fileDir)).toBe(false)
+  })
+
+  it('retourne true pour un chemin absolu', () => {
+    expect(hasOutOfVaultImageRef('![](/etc/passwd)', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour un chemin file://', () => {
+    expect(hasOutOfVaultImageRef('![](file:///etc/shadow)', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour un chemin ~/', () => {
+    expect(hasOutOfVaultImageRef('![](~/.ssh/id_rsa)', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour un traversal hors vault', () => {
+    expect(hasOutOfVaultImageRef('![](../../.ssh/id_rsa)', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne false si pas d\'image dans le markdown', () => {
+    expect(hasOutOfVaultImageRef('# Titre\n\nDu texte.', vault, fileDir)).toBe(false)
   })
 })
