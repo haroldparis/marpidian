@@ -1,5 +1,5 @@
 const esbuild = require('esbuild')
-const builtins = require('builtin-modules')
+const { default: builtins } = require('builtin-modules')
 
 const VAULT_PLUGIN_PATH =
   process.env.VAULT_PLUGIN_PATH ||
