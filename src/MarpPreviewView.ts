@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process'
 import { appendFile, mkdir, readdir, rename, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ItemView, Notice, type TFile, type WorkspaceLeaf } from 'obsidian'
+import { ItemView, MarkdownView, Notice, type TFile, type WorkspaceLeaf } from 'obsidian'
 import type { MarpidianSettings } from './settings'
 import type { Themes } from './Themes'
-import { getVaultBasePath, hasOutOfVaultImageRef } from './utils'
+import { detectMarpDocument, getVaultBasePath, hasOutOfVaultImageRef } from './utils'
 
 function log(logFile: string, enabled: boolean, msg: string): void {
   if (!enabled) return
@@ -106,12 +106,46 @@ export class MarpPreviewView extends ItemView {
     // Sécurité : allow-scripts seul (sans allow-same-origin) empêche les scripts
     // injectés via Marp html:true d'accéder au contexte parent Obsidian.
     // allow-scripts + allow-same-origin ensemble annule le sandbox (cf. MDN).
+    //
+    // opacity: 0 au départ + transition : l'iframe fade-in au chargement plutôt
+    // que d'apparaître brutalement blanche. Les renders suivants font un fade
+    // rapide (opacity 0 → load → opacity 1) qui masque le rechargement du srcdoc.
     this.iframe = this.contentEl.createEl('iframe', {
       attr: {
-        style: 'width: 100%; height: 100%; border: none; background: white;',
+        style: 'width: 100%; height: 100%; border: none; opacity: 0; transition: opacity 0.1s ease;',
         sandbox: 'allow-scripts',
       },
     })
+
+    // Initialisation anticipée : peuple currentMarkdown dès onOpen() pour ne pas
+    // afficher de page blanche. setViewState() résout sa Promise avant qu'onOpen()
+    // soit appelé, donc tout appel à updatePreview() depuis main.ts arrive trop tôt
+    // et trouve leaf.view non encore initialisé. On lit directement le workspace ici.
+    //
+    // Toujours écraser currentMarkdown (même s'il est déjà renseigné) : le fichier
+    // actif peut avoir changé entre deux onOpen() successifs (ex. A→B non-Marp→A).
+    //
+    // Deux cas couverts :
+    // - Feuille Markdown active (startup normal, file-switch) → getActiveViewOfType
+    // - Preview active (session restaurée où la preview était la dernière feuille) → parcours
+    const active = this.app.workspace.getActiveViewOfType(MarkdownView)
+    if (active?.file && detectMarpDocument(active.editor.getValue())) {
+      this.currentMarkdown = active.editor.getValue()
+      this.currentFile = active.file
+    } else {
+      for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+        const view = leaf.view
+        if (
+          view instanceof MarkdownView &&
+          view.file !== null &&
+          detectMarpDocument(view.editor.getValue())
+        ) {
+          this.currentMarkdown = view.editor.getValue()
+          this.currentFile = view.file
+          break
+        }
+      }
+    }
 
     this.render()
   }
@@ -279,6 +313,18 @@ export class MarpPreviewView extends ItemView {
     })
   }
 
+  /**
+   * Met à jour l'affichage de l'iframe avec le contenu Marp courant.
+   *
+   * Le changement de srcdoc provoque un rechargement interne de l'iframe (obligatoire
+   * car le modèle de sécurité sandbox interdit toute manipulation cross-frame du DOM).
+   * Pour masquer le flash blanc du rechargement, on enchaîne :
+   *   1. opacity → 0   (le contenu actuel s'efface en 0.1 s)
+   *   2. srcdoc = nouveau HTML
+   *   3. load  → opacity → 1  (le nouveau contenu apparaît en 0.1 s)
+   *
+   * Résultat perçu : transition douce plutôt qu'un flash blanc abrupt.
+   */
   private render(): void {
     if (!this.iframe) return
 
@@ -292,7 +338,17 @@ export class MarpPreviewView extends ItemView {
       .trim()
       .replace(/[<>]/g, '') || '#888'
 
-    this.iframe.srcdoc = `<!DOCTYPE html>
+    const iframe = this.iframe
+    iframe.style.opacity = '0'
+    iframe.addEventListener(
+      'load',
+      () => {
+        iframe.style.opacity = '1'
+      },
+      { once: true }
+    )
+
+    iframe.srcdoc = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">

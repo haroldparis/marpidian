@@ -93,6 +93,10 @@ export default class MarpidianPlugin extends Plugin {
       // Passe initiale au démarrage : cherche un fichier Marp ouvert parmi
       // toutes les feuilles (sans dépendre de activeLeaf, qui peut être la
       // preview elle-même lors d'une session restaurée).
+      //
+      // metadataCache n'est pas fiable ici : il parse les frontmatters en
+      // tâche de fond et peut être vide au moment de onLayoutReady. On lit
+      // directement le contenu de l'éditeur, disponible dès le démarrage.
       const marpView = this.app.workspace
         .getLeavesOfType('markdown')
         .map((leaf) => leaf.view)
@@ -100,12 +104,15 @@ export default class MarpidianPlugin extends Plugin {
           (view): view is MarkdownView =>
             view instanceof MarkdownView &&
             view.file !== null &&
-            Boolean(this.app.metadataCache.getFileCache(view.file)?.frontmatter?.marp)
+            detectMarpDocument(view.editor.getValue())
         )
       if (marpView) {
-        void this.openPreview().then(() =>
-          this.updatePreview(marpView.editor.getValue(), marpView.file)
-        )
+        void this.openPreview().then((created) => {
+          // Si la feuille existait déjà (session restaurée), onOpen() n'est pas rappelé :
+          // il faut forcer la mise à jour du contenu manuellement.
+          // Si elle vient d'être créée, onOpen() se peuple seul depuis le workspace.
+          if (!created) this.updatePreview(marpView.editor.getValue(), marpView.file)
+        })
       }
     })
 
@@ -233,8 +240,10 @@ export default class MarpidianPlugin extends Plugin {
       const content = activeView.editor.getValue()
       const file = activeView.file // capturé avant le await pour éviter la race condition
       if (detectMarpDocument(content)) {
-        await this.openPreview()
-        this.updatePreview(content, file)
+        const created = await this.openPreview()
+        // onOpen() s'auto-peuple si la feuille vient d'être créée.
+        // Si elle existait déjà (fichier Marp → fichier Marp), on force la mise à jour.
+        if (!created) this.updatePreview(content, file)
         return
       }
     }
@@ -255,12 +264,20 @@ export default class MarpidianPlugin extends Plugin {
     this.updatePreview(content, activeView.file)
   }
 
-  private async openPreview(): Promise<void> {
+  /**
+   * Ouvre la pane de preview si elle n'existe pas encore.
+   * Retourne true si une nouvelle feuille a été créée, false si elle existait déjà.
+   * Utilisé par les appelants pour savoir s'ils doivent appeler updatePreview()
+   * (nécessaire uniquement quand la feuille existe déjà et doit être mis à jour).
+   * Quand la feuille est créée, onOpen() se peuple directement depuis le workspace.
+   */
+  private async openPreview(): Promise<boolean> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP)
-    if (existing.length > 0) return
+    if (existing.length > 0) return false
 
     const leaf = this.app.workspace.getLeaf('split', 'vertical')
     await leaf.setViewState({ type: VIEW_TYPE_MARP, active: false })
+    return true
   }
 
   private async togglePreview(): Promise<void> {
