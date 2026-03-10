@@ -98,10 +98,13 @@ export class MarpPreviewView extends ItemView {
       })
     }
 
+    // Sécurité : allow-scripts seul (sans allow-same-origin) empêche les scripts
+    // injectés via Marp html:true d'accéder au contexte parent Obsidian.
+    // allow-scripts + allow-same-origin ensemble annule le sandbox (cf. MDN).
     this.iframe = this.contentEl.createEl('iframe', {
       attr: {
         style: 'width: 100%; height: 100%; border: none; background: white;',
-        sandbox: 'allow-scripts allow-same-origin',
+        sandbox: 'allow-scripts',
       },
     })
 
