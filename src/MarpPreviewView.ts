@@ -1,5 +1,6 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian'
 import type { Themes } from './Themes'
+import type { MarpidianSettings } from './settings'
 
 export const VIEW_TYPE_MARP = 'marpidian-preview'
 
@@ -7,10 +8,12 @@ export class MarpPreviewView extends ItemView {
   private themes: Themes
   private iframe: HTMLIFrameElement | null = null
   private currentMarkdown = ''
+  private getSettings: () => MarpidianSettings
 
-  constructor(leaf: WorkspaceLeaf, themes: Themes) {
+  constructor(leaf: WorkspaceLeaf, themes: Themes, getSettings: () => MarpidianSettings) {
     super(leaf)
     this.themes = themes
+    this.getSettings = getSettings
   }
 
   getViewType(): string {
@@ -18,7 +21,7 @@ export class MarpPreviewView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Marp Preview'
+    return 'Marpidian'
   }
 
   getIcon(): string {
@@ -60,7 +63,7 @@ export class MarpPreviewView extends ItemView {
   <meta charset="utf-8">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #888; overflow-y: auto; }
+    body { background: ${getComputedStyle(document.body).getPropertyValue('--background-primary').trim() || '#888'}; overflow-y: auto; }
     ${css}
   </style>
 </head>

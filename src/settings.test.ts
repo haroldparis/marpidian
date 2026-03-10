@@ -32,4 +32,12 @@ describe('mergeSettings', () => {
     const result = mergeSettings({ unknown: true } as any)
     expect((result as any).unknown).toBeUndefined()
   })
+
+  it('utilise exportDir sauvegardé si string', () => {
+    expect(mergeSettings({ exportDir: 'my-exports' }).exportDir).toBe('my-exports')
+  })
+
+  it('utilise la valeur par défaut si exportDir absent', () => {
+    expect(mergeSettings({}).exportDir).toBe('.marpidian-exports')
+  })
 })

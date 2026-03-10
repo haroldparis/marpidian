@@ -27,7 +27,7 @@ export default class MarpidianPlugin extends Plugin {
 
     await this.loadThemes()
 
-    this.registerView(VIEW_TYPE_MARP, (leaf) => new MarpPreviewView(leaf, this.themes))
+    this.registerView(VIEW_TYPE_MARP, (leaf) => new MarpPreviewView(leaf, this.themes, () => this.settings))
 
     this.addCommand({
       id: 'toggle-marp-preview',

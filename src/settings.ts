@@ -5,17 +5,20 @@ export interface ThemeEntry {
 export interface MarpidianSettings {
   themes: ThemeEntry[]
   themesFolder: string
+  exportDir: string
 }
 
 export const DEFAULT_SETTINGS: MarpidianSettings = {
   themes: [],
   themesFolder: '.marpidian',
+  exportDir: '.marpidian-exports',
 }
 
 export function mergeSettings(saved: Partial<MarpidianSettings>): MarpidianSettings {
   return {
     themes: Array.isArray(saved.themes) ? saved.themes : DEFAULT_SETTINGS.themes,
     themesFolder: typeof saved.themesFolder === 'string' ? saved.themesFolder : DEFAULT_SETTINGS.themesFolder,
+    exportDir: typeof saved.exportDir === 'string' ? saved.exportDir : DEFAULT_SETTINGS.exportDir,
   }
 }
 
@@ -92,6 +95,20 @@ export class MarpidianSettingTab extends PluginSettingTab {
         setIcon(btn.buttonEl, 'folder-open')
         btn.onClick(() => this.plugin.revealThemesFolder())
       })
+
+    // — Dossier d'export —
+    new Setting(containerEl)
+      .setName("Dossier d'export")
+      .setDesc('Dossier cible pour les exports PDF et PNG (chemin relatif depuis la racine du vault).')
+      .addText((text) =>
+        text
+          .setPlaceholder('.marpidian-exports')
+          .setValue(this.plugin.settings.exportDir)
+          .onChange(async (value) => {
+            this.plugin.settings.exportDir = value.trim() || '.marpidian-exports'
+            await this.plugin.saveSettings(false)
+          })
+      )
 
     // — Thèmes installés —
     containerEl.createEl('h3', { text: 'Thèmes installés' })
