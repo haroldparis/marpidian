@@ -265,13 +265,20 @@ export class MarpPreviewView extends ItemView {
     const marp = this.themes.getMarpInstance()
     const { html, css } = marp.render(this.currentMarkdown)
 
+    // Sanitiser la valeur CSS : supprimer < et > pour empêcher un breakout
+    // hors de la balise <style> via un thème Obsidian malveillant.
+    const bgColor = getComputedStyle(document.body)
+      .getPropertyValue('--background-primary')
+      .trim()
+      .replace(/[<>]/g, '') || '#888'
+
     this.iframe.srcdoc = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: ${getComputedStyle(document.body).getPropertyValue('--background-primary').trim() || '#888'}; overflow-y: auto; }
+    body { background: ${bgColor}; overflow-y: auto; }
     ${css}
   </style>
 </head>
