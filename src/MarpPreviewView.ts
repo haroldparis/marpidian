@@ -1,17 +1,36 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf } from 'obsidian'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
+import { spawn } from 'child_process'
 import { mkdir, rename, readdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import type { Themes } from './Themes'
 import type { MarpidianSettings } from './settings'
 import { getVaultBasePath } from './utils'
 
-const execFileAsync = promisify(execFile)
-const MARP_EXEC_OPTIONS = {
-  encoding: 'utf8' as const,
-  stdio: ['ignore', 'pipe', 'pipe'] as const,
-  timeout: 60_000,  // tue le process si marp CLI ne répond pas (ex. Chromium bloqué)
+/**
+ * Exécute marp CLI avec stdin ignoré (évite le blocage sur stdin pipe).
+ * Rejette avec le contenu stderr si marp sort avec un code non nul.
+ */
+function runMarp(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('marp', args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const stderr: string[] = []
+    child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk.toString()))
+    const timer = setTimeout(() => {
+      child.kill()
+      reject(new Error('Timeout : marp CLI n\'a pas répondu dans les 60 secondes.'))
+    }, 60_000)
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve()
+      else reject(new Error(stderr.join('').trim() || `marp a retourné le code ${code}`))
+    })
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
+  })
 }
 
 
@@ -100,7 +119,7 @@ export class MarpPreviewView extends ItemView {
     new Notice('[Marpidian] Export PDF en cours...')
     try {
       await mkdir(join(ctx.vaultBase, settings.exportDir), { recursive: true })
-      await execFileAsync('marp', ['--pdf', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath], MARP_EXEC_OPTIONS)
+      await runMarp(['--pdf', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath])
       new Notice(`[Marpidian] PDF exporté dans ${settings.exportDir}/${activeFile.basename}.pdf`)
     } catch (e: any) {
       new Notice(`[Marpidian] Échec de l'export PDF : ${e?.stderr ?? e?.message ?? e}`)
@@ -135,7 +154,7 @@ export class MarpPreviewView extends ItemView {
           .map(f => unlink(join(outputDir, f)).catch(() => {}))
       )
 
-      await execFileAsync('marp', ['--images', 'png', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'], MARP_EXEC_OPTIONS)
+      await runMarp(['--images', 'png', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'])
 
       // Renommer basename.001.png → 1.png, basename.002.png → 2.png, etc.
       const generated = (await readdir(outputDir))
