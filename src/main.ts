@@ -73,6 +73,22 @@ export default class MarpidianPlugin extends Plugin {
           debounce(() => this.onEditorChange(), 300)
         )
       )
+
+      // Changements de frontmatter via le panneau de propriétés Obsidian :
+      // ne déclenchent pas editor-change, seulement metadataCache.
+      this.registerEvent(
+        this.app.metadataCache.on('changed', (file) => {
+          const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
+          if (!activeView || activeView.file?.path !== file.path) return
+          const content = activeView.editor.getValue()
+          if (detectMarpDocument(content)) {
+            void this.openPreview()
+            this.updatePreview(content, activeView.file)
+          } else {
+            this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => leaf.detach())
+          }
+        })
+      )
     })
 
     this.addSettingTab(new MarpidianSettingTab(this.app, this))
