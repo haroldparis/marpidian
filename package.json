@@ -8,16 +8,21 @@
     "dev": "node esbuild.config.js --watch",
     "build": "node esbuild.config.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "biome check src/",
+    "release": "release-it"
   },
   "dependencies": {
     "@marp-team/marp-core": "^3.4.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.6",
+    "@release-it/bumper": "^7.0.5",
     "@types/node": "^20.0.0",
     "builtin-modules": "^3.3.0",
     "esbuild": "^0.21.0",
     "obsidian": "latest",
+    "release-it": "^19.2.4",
     "tslib": "^2.6.0",
     "typescript": "^5.0.0",
     "vitest": "^1.6.0"

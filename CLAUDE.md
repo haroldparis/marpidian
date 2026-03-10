@@ -37,16 +37,17 @@ Variable d'environnement `VAULT_PLUGIN_PATH` pour surcharger la destination.
 ```
 src/
   main.ts              # Entry point : lifecycle, détection fichier, orchestration
-  MarpPreviewView.ts   # ItemView Obsidian : iframe srcdoc, rendu Marp
-  Themes.ts            # Registre CSS : cache, factory getMarpInstance(), hot-reload
-  settings.ts          # Types MarpidianSettings + mergeSettings + PluginSettingTab
-  utils.ts             # detectMarpDocument(), debounce()
+  MarpPreviewView.ts   # ItemView Obsidian : iframe srcdoc, rendu Marp, exports CLI
+  Themes.ts            # Registre CSS : cache Marp instance, hot-reload, setOnUpdate()
+  settings.ts          # Types MarpidianSettings + mergeSettings (types purs uniquement)
+  SettingTab.ts        # PluginSettingTab + ConfirmDeleteModal (UI settings)
+  utils.ts             # detectMarpDocument(), debounce(), getVaultBasePath()
   __mocks__/obsidian.ts  # Mock minimal pour Vitest (obsidian n'existe pas en Node)
 ```
 
 ### Pattern clé : Themes.ts
 
-`Themes` est une factory fonctionnelle — jamais d'instance Marp partagée. `getMarpInstance()` crée une nouvelle instance `Marp({ html: true })` à chaque rendu en injectant tous les CSS du cache, évitant toute pollution de state entre documents.
+`Themes` maintient une instance Marp cachée (`cachedMarp`), invalidée à chaque `loadTheme()` ou hot-reload CSS. `getMarpInstance()` reconstruit uniquement si le cache est nul. `setOnUpdate(cb)` permet à `main.ts` de déclencher un re-render quand un thème change.
 
 ### Rendu via iframe
 
@@ -78,14 +79,28 @@ npm test -- utils
 npm test -- Themes
 ```
 
-## Implémentation
+## Export (Marp CLI)
 
-Le plan d'implémentation complet (task-by-task avec code) est dans :
+Les exports PDF et PNG nécessitent `marp` dans le PATH système. Détecté au chargement via `spawnSync('marp', ['--version'])`.
+
+Debug logging dans `/tmp/marpidian.log`, activable via Settings > Debug logging.
+
+Dossier d'export : `<vault>/<exportDir>/<basename>/` (PDF et PNG colocalisés).
+
+## Gotchas critiques
+
+**Marp CLI — `--theme-set` est un tableau yargs** : il consomme tous les arguments positionnels qui suivent. Toujours passer `inputPath` AVANT `--theme-set` :
 ```
-docs/plans/2026-03-09-marpidian-implementation.md
+['--pdf', '--allow-local-files', inputPath, '--theme-set', 'theme.css', '-o', out]
 ```
 
-Si tu démarres l'implémentation, utilise le skill `superpowers:executing-plans`.
+**Marp CLI — stdin** : utiliser `spawn` avec `stdio: ['ignore', 'pipe', 'pipe']`. `execFile` ne supporte pas `stdio` custom et bloque sur stdin. Ne pas passer `--no-stdin` (invalide dans la version courante).
+
+**Race condition `activeView.file`** : capturer `const file = activeView.file` AVANT tout `await` dans `onActiveLeafChange`. L'`await openPreview()` change le focus et rend `getActiveViewOfType(MarkdownView)` null ensuite.
+
+**`require('electron')` inline** : l'import top-level `import ... from 'electron'` casse Vitest. Utiliser `require('electron')` directement dans les callbacks.
+
+**`registerEvent` dans `onLayoutReady`** : les events workspace (`active-leaf-change`, `editor-change`) doivent être enregistrés dans `this.app.workspace.onLayoutReady(...)` pour éviter les triggers parasites pendant le boot d'Obsidian.
 
 ## Stack
 

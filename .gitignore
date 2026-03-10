@@ -1,4 +1,17 @@
+# Dependencies
 node_modules/
+
+# Build output
 main.js
 *.js.map
+
+# Dev internals
+docs/
+.claude/
+
+# Environment
 .env
+
+# OS
+.DS_Store
+Thumbs.db

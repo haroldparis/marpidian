@@ -1,0 +1,22 @@
+{
+  "plugins": {
+    "@release-it/bumper": {
+      "in": ["package.json", "manifest.json"],
+      "out": ["package.json", "manifest.json"]
+    }
+  },
+  "git": {
+    "commitMessage": "Release ${version}",
+    "tagName": "${version}",
+    "tagAnnotation": "Release ${version}"
+  },
+  "github": {
+    "release": false
+  },
+  "npm": {
+    "publish": false
+  },
+  "hooks": {
+    "before:init": ["npm run lint", "npm test"]
+  }
+}
