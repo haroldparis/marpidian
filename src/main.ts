@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { FileView, MarkdownView, Notice, Plugin, type TFile } from 'obsidian'
+import { FileExplorerDecorator } from './FileExplorerDecorator'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
 import { MarpidianSettingTab } from './SettingTab'
 import type { MarpidianSettings } from './settings'
@@ -11,7 +12,6 @@ import {
   extractThemeName,
   getVaultBasePath,
 } from './utils'
-import { FileExplorerDecorator } from './FileExplorerDecorator'
 
 export default class MarpidianPlugin extends Plugin {
   settings: MarpidianSettings
