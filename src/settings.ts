@@ -77,6 +77,20 @@ export class MarpidianSettingTab extends PluginSettingTab {
     containerEl.empty()
     containerEl.createEl('h2', { text: 'Marpidian' })
 
+    // — Statut Marp CLI —
+    const cliSetting = new Setting(containerEl).setName('Marp CLI')
+    if (this.plugin.marpCliAvailable) {
+      cliSetting.setDesc('Détectée. Les exports PDF et PNG sont disponibles dans la vue Marpidian.')
+    } else {
+      cliSetting
+        .setDesc('Non détectée. Installez Marp CLI puis relancez Obsidian.')
+        .addButton(btn =>
+          btn
+            .setButtonText('Site officiel')
+            .onClick(() => (require('electron') as typeof import('electron')).shell.openExternal('https://github.com/marp-team/marp-cli'))
+        )
+    }
+
     // — Dossier des thèmes —
     new Setting(containerEl)
       .setName('Dossier des thèmes')

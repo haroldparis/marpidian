@@ -13,7 +13,6 @@ const buildOptions = {
   external: [
     'obsidian',
     'electron',
-    '@electron/remote',
     '@codemirror/*',
     '@lezer/*',
     ...builtins,

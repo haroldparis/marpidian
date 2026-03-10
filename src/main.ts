@@ -1,5 +1,6 @@
 import { Plugin, MarkdownView, Notice } from 'obsidian'
 import { shell } from 'electron'
+import { spawnSync } from 'child_process'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
 import { MarpidianSettingTab } from './settings'
 import { Themes } from './Themes'
@@ -10,6 +11,7 @@ import type { MarpidianSettings } from './settings'
 export default class MarpidianPlugin extends Plugin {
   settings: MarpidianSettings
   themes: Themes
+  marpCliAvailable = false
 
   async onload(): Promise<void> {
     const saved = await this.loadData()
@@ -27,7 +29,9 @@ export default class MarpidianPlugin extends Plugin {
 
     await this.loadThemes()
 
-    this.registerView(VIEW_TYPE_MARP, (leaf) => new MarpPreviewView(leaf, this.themes, () => this.settings))
+    this.marpCliAvailable = spawnSync('marp', ['--version'], { timeout: 2000, stdio: 'ignore' }).status === 0
+
+    this.registerView(VIEW_TYPE_MARP, (leaf) => new MarpPreviewView(leaf, this.themes, () => this.settings, this.marpCliAvailable))
 
     this.addCommand({
       id: 'toggle-marp-preview',
@@ -183,9 +187,10 @@ export default class MarpidianPlugin extends Plugin {
   }
 
   private updatePreview(markdown: string): void {
+    const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file ?? null
     this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => {
       if (leaf.view instanceof MarpPreviewView) {
-        leaf.view.update(markdown)
+        leaf.view.update(markdown, file)
       }
     })
   }

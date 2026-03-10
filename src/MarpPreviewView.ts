@@ -1,17 +1,13 @@
-import { ItemView, Notice, WorkspaceLeaf } from 'obsidian'
-import { writeFile, unlink, mkdir } from 'fs/promises'
-import { tmpdir } from 'os'
+import { ItemView, Notice, TFile, WorkspaceLeaf } from 'obsidian'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import { mkdir, rename, readdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import type { Themes } from './Themes'
 import type { MarpidianSettings } from './settings'
 
-// Dimensions d'une slide Marp 16:9 en micromètres (unité Chromium : 1 in = 25400 µm)
-const SLIDE_WIDTH_UM = 338667   // ≈ 33.87 cm
-const SLIDE_HEIGHT_UM = 190500  // ≈ 19.05 cm
+const execFileAsync = promisify(execFile)
 
-// Dimensions d'une slide Marp 16:9 en pixels
-const SLIDE_WIDTH_PX = 1280
-const SLIDE_HEIGHT_PX = 720
 
 export const VIEW_TYPE_MARP = 'marpidian-preview'
 
@@ -19,12 +15,15 @@ export class MarpPreviewView extends ItemView {
   private themes: Themes
   private iframe: HTMLIFrameElement | null = null
   private currentMarkdown = ''
+  private currentFile: TFile | null = null
   private getSettings: () => MarpidianSettings
+  private marpCliAvailable: boolean
 
-  constructor(leaf: WorkspaceLeaf, themes: Themes, getSettings: () => MarpidianSettings) {
+  constructor(leaf: WorkspaceLeaf, themes: Themes, getSettings: () => MarpidianSettings, marpCliAvailable: boolean) {
     super(leaf)
     this.themes = themes
     this.getSettings = getSettings
+    this.marpCliAvailable = marpCliAvailable
   }
 
   getViewType(): string {
@@ -43,8 +42,10 @@ export class MarpPreviewView extends ItemView {
     this.contentEl.empty()
     this.contentEl.style.cssText = 'padding: 0; overflow: hidden; height: 100%;'
 
-    this.addAction('file-down', 'Exporter en PDF', () => { void this.exportPdf() })
-    this.addAction('image-down', 'Exporter en PNG', () => { void this.exportPng() })
+    if (this.marpCliAvailable) {
+      this.addAction('file-down', 'Exporter en PDF', () => { void this.exportPdf() })
+      this.addAction('image-down', 'Exporter en PNG', () => { void this.exportPng() })
+    }
 
     this.iframe = this.contentEl.createEl('iframe', {
       attr: {
@@ -60,138 +61,79 @@ export class MarpPreviewView extends ItemView {
     this.iframe = null
   }
 
-  update(markdown: string): void {
+  update(markdown: string, file: TFile | null): void {
     this.currentMarkdown = markdown
+    this.currentFile = file
     this.render()
   }
 
-  private buildExportHtml(): string {
-    const marp = this.themes.getMarpInstance()
-    const { html, css } = marp.render(this.currentMarkdown)
-    return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { margin: 0; padding: 0; }
-    ${css}
-  </style>
-</head>
-<body>
-  ${html}
-</body>
-</html>`
+  private marpArgs(): { inputPath: string; themeArgs: string[]; vaultBase: string } | null {
+    const activeFile = this.currentFile
+    if (!activeFile) return null
+    const adapter = this.app.vault.adapter as any
+    const vaultBase: string = adapter.basePath ?? adapter.getBasePath?.() ?? ''
+    if (!vaultBase) return null
+    const settings = this.getSettings()
+    const themeArgs = settings.themes.flatMap(t => ['--theme-set', join(vaultBase, t.path)])
+    return { inputPath: join(vaultBase, activeFile.path), themeArgs, vaultBase }
   }
 
   private async exportPdf(): Promise<void> {
-    if (!this.currentMarkdown) {
-      new Notice('[Marpidian] Aucun contenu à exporter.')
+    const ctx = this.marpArgs()
+    if (!ctx) {
+      new Notice('[Marpidian] Aucun fichier actif.')
       return
     }
 
-    let remote: any
-    try {
-      remote = require('@electron/remote')
-    } catch {
-      new Notice('[Marpidian] Export PDF indisponible : @electron/remote introuvable.')
-      return
-    }
-
-    const { BrowserWindow, dialog } = remote
-    const tmpPath = join(tmpdir(), `marpidian-export-${Date.now()}.html`)
+    const activeFile = this.currentFile!
+    const settings = this.getSettings()
+    const outputPath = join(ctx.vaultBase, settings.exportDir, activeFile.basename + '.pdf')
 
     try {
-      await writeFile(tmpPath, this.buildExportHtml(), 'utf-8')
-
-      const win = new BrowserWindow({ show: false, width: SLIDE_WIDTH_PX, height: SLIDE_HEIGHT_PX })
-      try {
-        await win.loadURL(`file://${tmpPath}`)
-        const pdfBuffer = await win.webContents.printToPDF({
-          printBackground: true,
-          pageSize: { width: SLIDE_WIDTH_UM, height: SLIDE_HEIGHT_UM },
-        })
-        const result = await dialog.showSaveDialog({
-          defaultPath: 'presentation.pdf',
-          filters: [{ name: 'PDF', extensions: ['pdf'] }],
-        })
-        if (!result.canceled && result.filePath) {
-          await writeFile(result.filePath, pdfBuffer)
-          new Notice('[Marpidian] PDF exporté.')
-        }
-      } finally {
-        win.destroy()
-      }
+      await mkdir(join(ctx.vaultBase, settings.exportDir), { recursive: true })
+      await execFileAsync('marp', ['--pdf', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath])
+      new Notice(`[Marpidian] PDF exporté dans ${settings.exportDir}/${activeFile.basename}.pdf`)
     } catch (e: any) {
-      new Notice(`[Marpidian] Échec de l'export PDF : ${e?.message ?? e}`)
-    } finally {
-      await unlink(tmpPath).catch(() => {})
+      new Notice(`[Marpidian] Échec de l'export PDF : ${e?.stderr ?? e?.message ?? e}`)
     }
   }
 
   private async exportPng(): Promise<void> {
-    if (!this.currentMarkdown) {
-      new Notice('[Marpidian] Aucun contenu à exporter.')
+    const ctx = this.marpArgs()
+    if (!ctx) {
+      new Notice('[Marpidian] Aucun fichier actif.')
       return
     }
 
-    let remote: any
-    try {
-      remote = require('@electron/remote')
-    } catch {
-      new Notice('[Marpidian] Export PNG indisponible : @electron/remote introuvable.')
-      return
-    }
-
-    const { BrowserWindow } = remote
+    const activeFile = this.currentFile!
     const settings = this.getSettings()
-    const activeFile = this.app.workspace.getActiveFile()
-    const basename = activeFile?.basename ?? 'untitled'
-    // FileSystemAdapter (desktop) expose basePath — non typé dans l'API publique d'Obsidian
-    const adapter = this.app.vault.adapter as any
-    const vaultBase: string = adapter.basePath ?? adapter.getBasePath?.() ?? ''
-
-    if (!vaultBase) {
-      new Notice('[Marpidian] Impossible de déterminer le chemin du vault.')
-      return
-    }
-
-    const outputDir = join(vaultBase, settings.exportDir, basename)
-    const tmpPath = join(tmpdir(), `marpidian-export-${Date.now()}.html`)
+    const outputDir = join(ctx.vaultBase, settings.exportDir, activeFile.basename)
+    const outputBase = join(outputDir, activeFile.basename)
 
     try {
       await mkdir(outputDir, { recursive: true })
-      await writeFile(tmpPath, this.buildExportHtml(), 'utf-8')
 
-      const win = new BrowserWindow({ show: false, width: SLIDE_WIDTH_PX, height: SLIDE_HEIGHT_PX })
-      try {
-        await win.loadURL(`file://${tmpPath}`)
+      // Nettoyer les anciens fichiers numérotés (évite les résidus si le nombre de slides a changé)
+      const existing = await readdir(outputDir)
+      await Promise.all(
+        existing
+          .filter(f => /\.\d{3}\.png$/.test(f))
+          .map(f => unlink(join(outputDir, f)).catch(() => {}))
+      )
 
-        const rects = await win.webContents.executeJavaScript(`
-          Array.from(document.querySelectorAll('section')).map(s => {
-            const r = s.getBoundingClientRect()
-            return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) }
-          })
-        `) as { x: number; y: number; width: number; height: number }[]
+      await execFileAsync('marp', ['--images', 'png', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'])
 
-        if (rects.length === 0) {
-          new Notice('[Marpidian] Aucune slide détectée.')
-          return
-        }
+      // Renommer basename.001.png → 1.png, basename.002.png → 2.png, etc.
+      const generated = (await readdir(outputDir))
+        .filter(f => /\.\d{3}\.png$/.test(f))
+        .sort()
+      await Promise.all(
+        generated.map((f, i) => rename(join(outputDir, f), join(outputDir, `${i + 1}.png`)))
+      )
 
-        for (let i = 0; i < rects.length; i++) {
-          const image = await win.webContents.capturePage(rects[i])
-          await writeFile(join(outputDir, `${i + 1}.png`), image.toPNG())
-        }
-
-        new Notice(`[Marpidian] ${rects.length} slide(s) exportée(s) dans ${settings.exportDir}/${basename}/`)
-      } finally {
-        win.destroy()
-      }
+      new Notice(`[Marpidian] ${generated.length} slide(s) exportée(s) dans ${settings.exportDir}/${activeFile.basename}/`)
     } catch (e: any) {
-      new Notice(`[Marpidian] Échec de l'export PNG : ${e?.message ?? e}`)
-    } finally {
-      await unlink(tmpPath).catch(() => {})
+      new Notice(`[Marpidian] Échec de l'export PNG : ${e?.stderr ?? e?.message ?? e}`)
     }
   }
 
