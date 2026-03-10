@@ -1,5 +1,4 @@
 import { Plugin, MarkdownView, Notice } from 'obsidian'
-import { shell } from 'electron'
 import { spawnSync } from 'child_process'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
 import { MarpidianSettingTab } from './settings'
@@ -116,6 +115,7 @@ export default class MarpidianPlugin extends Plugin {
     }
     await this.app.vault.adapter.mkdir(this.settings.themesFolder)
     const absPath = `${basePath}/${this.settings.themesFolder}`
+    const { shell } = require('electron') as typeof import('electron')
     const error = await shell.openPath(absPath)
     if (error) new Notice(`[Marpidian] Impossible d'ouvrir le dossier : ${error}`)
   }
