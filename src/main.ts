@@ -11,11 +11,13 @@ import {
   extractThemeName,
   getVaultBasePath,
 } from './utils'
+import { FileExplorerDecorator } from './FileExplorerDecorator'
 
 export default class MarpidianPlugin extends Plugin {
   settings: MarpidianSettings
   themes: Themes
   marpCliAvailable = false
+  private decorator: FileExplorerDecorator
 
   async onload(): Promise<void> {
     const saved = await this.loadData()
@@ -37,6 +39,8 @@ export default class MarpidianPlugin extends Plugin {
       spawnSync('marp', ['--version'], { timeout: 2000, stdio: 'ignore' })
         .status === 0
 
+    this.decorator = new FileExplorerDecorator(this.app)
+
     this.registerView(
       VIEW_TYPE_MARP,
       (leaf) =>
@@ -55,6 +59,8 @@ export default class MarpidianPlugin extends Plugin {
     })
 
     this.app.workspace.onLayoutReady(() => {
+      this.decorator.decorate()
+
       this.registerEvent(
         this.app.workspace.on('active-leaf-change', () =>
           this.onActiveLeafChange()
@@ -74,6 +80,7 @@ export default class MarpidianPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     this.themes.dispose()
+    this.decorator.dispose()
   }
 
   async saveSettings(reloadThemes = true): Promise<void> {
