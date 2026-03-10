@@ -5,6 +5,7 @@ import { mkdir, rename, readdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import type { Themes } from './Themes'
 import type { MarpidianSettings } from './settings'
+import { getVaultBasePath } from './utils'
 
 const execFileAsync = promisify(execFile)
 
@@ -18,6 +19,7 @@ export class MarpPreviewView extends ItemView {
   private currentFile: TFile | null = null
   private getSettings: () => MarpidianSettings
   private marpCliAvailable: boolean
+  private exporting = false
 
   constructor(leaf: WorkspaceLeaf, themes: Themes, getSettings: () => MarpidianSettings, marpCliAvailable: boolean) {
     super(leaf)
@@ -70,8 +72,7 @@ export class MarpPreviewView extends ItemView {
   private marpArgs(): { inputPath: string; themeArgs: string[]; vaultBase: string } | null {
     const activeFile = this.currentFile
     if (!activeFile) return null
-    const adapter = this.app.vault.adapter as any
-    const vaultBase: string = adapter.basePath ?? adapter.getBasePath?.() ?? ''
+    const vaultBase = getVaultBasePath(this.app.vault.adapter)
     if (!vaultBase) return null
     const settings = this.getSettings()
     const themeArgs = settings.themes.flatMap(t => ['--theme-set', join(vaultBase, t.path)])
@@ -79,6 +80,7 @@ export class MarpPreviewView extends ItemView {
   }
 
   private async exportPdf(): Promise<void> {
+    if (this.exporting) return
     const ctx = this.marpArgs()
     if (!ctx) {
       new Notice('[Marpidian] Aucun fichier actif.')
@@ -89,16 +91,20 @@ export class MarpPreviewView extends ItemView {
     const settings = this.getSettings()
     const outputPath = join(ctx.vaultBase, settings.exportDir, activeFile.basename + '.pdf')
 
+    this.exporting = true
     try {
       await mkdir(join(ctx.vaultBase, settings.exportDir), { recursive: true })
-      await execFileAsync('marp', ['--pdf', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath])
+      await execFileAsync('marp', ['--pdf', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath], { encoding: 'utf8' })
       new Notice(`[Marpidian] PDF exporté dans ${settings.exportDir}/${activeFile.basename}.pdf`)
     } catch (e: any) {
       new Notice(`[Marpidian] Échec de l'export PDF : ${e?.stderr ?? e?.message ?? e}`)
+    } finally {
+      this.exporting = false
     }
   }
 
   private async exportPng(): Promise<void> {
+    if (this.exporting) return
     const ctx = this.marpArgs()
     if (!ctx) {
       new Notice('[Marpidian] Aucun fichier actif.')
@@ -110,6 +116,7 @@ export class MarpPreviewView extends ItemView {
     const outputDir = join(ctx.vaultBase, settings.exportDir, activeFile.basename)
     const outputBase = join(outputDir, activeFile.basename)
 
+    this.exporting = true
     try {
       await mkdir(outputDir, { recursive: true })
 
@@ -121,7 +128,7 @@ export class MarpPreviewView extends ItemView {
           .map(f => unlink(join(outputDir, f)).catch(() => {}))
       )
 
-      await execFileAsync('marp', ['--images', 'png', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'])
+      await execFileAsync('marp', ['--images', 'png', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'], { encoding: 'utf8' })
 
       // Renommer basename.001.png → 1.png, basename.002.png → 2.png, etc.
       const generated = (await readdir(outputDir))
@@ -134,6 +141,8 @@ export class MarpPreviewView extends ItemView {
       new Notice(`[Marpidian] ${generated.length} slide(s) exportée(s) dans ${settings.exportDir}/${activeFile.basename}/`)
     } catch (e: any) {
       new Notice(`[Marpidian] Échec de l'export PNG : ${e?.stderr ?? e?.message ?? e}`)
+    } finally {
+      this.exporting = false
     }
   }
 

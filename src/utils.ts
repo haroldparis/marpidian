@@ -30,3 +30,13 @@ export function extractThemeName(css: string): string | null {
   const match = css.match(/\/\*\s*@theme\s+(\S+)/)
   return match ? match[1] : null
 }
+
+/**
+ * Returns the absolute base path of the vault on disk.
+ * FileSystemAdapter (desktop) exposes basePath but it is not typed in the public Obsidian API.
+ * Returns an empty string if unavailable (e.g. mobile).
+ */
+export function getVaultBasePath(adapter: unknown): string {
+  const a = adapter as { basePath?: string; getBasePath?: () => string }
+  return a.basePath ?? a.getBasePath?.() ?? ''
+}

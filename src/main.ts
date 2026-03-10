@@ -3,7 +3,7 @@ import { spawnSync } from 'child_process'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
 import { MarpidianSettingTab } from './settings'
 import { Themes } from './Themes'
-import { detectMarpDocument, debounce, extractThemeName } from './utils'
+import { detectMarpDocument, debounce, extractThemeName, getVaultBasePath } from './utils'
 import { mergeSettings } from './settings'
 import type { MarpidianSettings } from './settings'
 
@@ -107,8 +107,7 @@ export default class MarpidianPlugin extends Plugin {
   }
 
   async revealThemesFolder(): Promise<void> {
-    const adapter = this.app.vault.adapter as any
-    const basePath = adapter.basePath ?? adapter.getBasePath?.() ?? ''
+    const basePath = getVaultBasePath(this.app.vault.adapter)
     if (!basePath) {
       new Notice('[Marpidian] Impossible de déterminer le chemin du vault.')
       return
