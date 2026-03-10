@@ -8,6 +8,7 @@ main.js
 # Dev internals
 docs/
 .claude/
+.worktrees/
 
 # Environment
 .env
