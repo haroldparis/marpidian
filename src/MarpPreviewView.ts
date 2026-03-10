@@ -104,7 +104,7 @@ export class MarpPreviewView extends ItemView {
     try {
       await writeFile(tmpPath, this.buildExportHtml(), 'utf-8')
 
-      const win = new BrowserWindow({ show: false, width: 1280, height: 720 })
+      const win = new BrowserWindow({ show: false, width: SLIDE_WIDTH_PX, height: SLIDE_HEIGHT_PX })
       try {
         await win.loadURL(`file://${tmpPath}`)
         const pdfBuffer = await win.webContents.printToPDF({

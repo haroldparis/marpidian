@@ -9,6 +9,10 @@ describe('DEFAULT_SETTINGS', () => {
   it('contient themesFolder à ".marpidian"', () => {
     expect(DEFAULT_SETTINGS.themesFolder).toBe('.marpidian')
   })
+
+  it('contient exportDir à .marpidian-exports', () => {
+    expect(DEFAULT_SETTINGS.exportDir).toBe('.marpidian-exports')
+  })
 })
 
 describe('mergeSettings', () => {
