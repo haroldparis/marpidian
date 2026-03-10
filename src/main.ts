@@ -90,9 +90,23 @@ export default class MarpidianPlugin extends Plugin {
         })
       )
 
-      // Passe initiale au démarrage : peuple la preview si un fichier Marp
-      // était déjà actif quand Obsidian a été fermé (session restaurée).
-      void this.onActiveLeafChange()
+      // Passe initiale au démarrage : cherche un fichier Marp ouvert parmi
+      // toutes les feuilles (sans dépendre de activeLeaf, qui peut être la
+      // preview elle-même lors d'une session restaurée).
+      const marpView = this.app.workspace
+        .getLeavesOfType('markdown')
+        .map((leaf) => leaf.view)
+        .find(
+          (view): view is MarkdownView =>
+            view instanceof MarkdownView &&
+            view.file !== null &&
+            Boolean(this.app.metadataCache.getFileCache(view.file)?.frontmatter?.marp)
+        )
+      if (marpView) {
+        void this.openPreview().then(() =>
+          this.updatePreview(marpView.editor.getValue(), marpView.file)
+        )
+      }
     })
 
     this.addSettingTab(new MarpidianSettingTab(this.app, this))
