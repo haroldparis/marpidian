@@ -1,5 +1,5 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian'
-import { writeFile, unlink } from 'fs/promises'
+import { writeFile, unlink, mkdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import type { Themes } from './Themes'
@@ -126,7 +126,66 @@ export class MarpPreviewView extends ItemView {
   }
 
   private async exportPng(): Promise<void> {
-    new Notice('[Marpidian] Export PNG : bientôt disponible.')
+    if (!this.currentMarkdown) {
+      new Notice('[Marpidian] Aucun contenu à exporter.')
+      return
+    }
+
+    let remote: any
+    try {
+      remote = require('@electron/remote')
+    } catch {
+      new Notice('[Marpidian] Export PNG indisponible : @electron/remote introuvable.')
+      return
+    }
+
+    const { BrowserWindow } = remote
+    const settings = this.getSettings()
+    const activeFile = this.app.workspace.getActiveFile()
+    const basename = activeFile?.basename ?? 'untitled'
+    const adapter = this.app.vault.adapter as any
+    const vaultBase: string = adapter.basePath ?? adapter.getBasePath?.() ?? ''
+
+    if (!vaultBase) {
+      new Notice('[Marpidian] Impossible de déterminer le chemin du vault.')
+      return
+    }
+
+    const outputDir = join(vaultBase, settings.exportDir, basename)
+    const tmpPath = join(tmpdir(), `marpidian-export-${Date.now()}.html`)
+
+    try {
+      await mkdir(outputDir, { recursive: true })
+      await writeFile(tmpPath, this.buildExportHtml(), 'utf-8')
+
+      const win = new BrowserWindow({ show: false, width: 1280, height: 720 })
+      try {
+        await win.loadURL(`file://${tmpPath}`)
+
+        const slideCount: number = await win.webContents.executeJavaScript(
+          'document.querySelectorAll("section").length'
+        )
+
+        if (slideCount === 0) {
+          new Notice('[Marpidian] Aucune slide détectée.')
+          return
+        }
+
+        for (let i = 0; i < slideCount; i++) {
+          await win.webContents.executeJavaScript(`window.scrollTo(0, ${i * 720})`)
+          const image = await win.webContents.capturePage({ x: 0, y: 0, width: 1280, height: 720 })
+          await writeFile(join(outputDir, `${i + 1}.png`), image.toPNG())
+        }
+
+        new Notice(`[Marpidian] ${slideCount} slide(s) exportée(s) dans ${settings.exportDir}/${basename}/`)
+      } finally {
+        win.destroy()
+      }
+    } catch (e: any) {
+      new Notice(`[Marpidian] Échec de l'export PNG : ${e?.message ?? e}`)
+    } finally {
+      await unlink(tmpPath).catch(() => {})
+    }
   }
 
   private render(): void {
