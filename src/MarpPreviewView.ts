@@ -100,6 +100,8 @@ export class MarpPreviewView extends ItemView {
     if (!vaultBase) return null
     const settings = this.getSettings()
     const themeArgs = settings.themes.flatMap(t => ['--theme-set', join(vaultBase, t.path)])
+    // inputPath doit précéder --theme-set : marp traite --theme-set comme un tableau
+    // et consomme tous les arguments positionnels qui suivent.
     return { inputPath: join(vaultBase, activeFile.path), themeArgs, vaultBase }
   }
 
@@ -119,7 +121,7 @@ export class MarpPreviewView extends ItemView {
     new Notice('[Marpidian] Export PDF en cours...')
     try {
       await mkdir(join(ctx.vaultBase, settings.exportDir), { recursive: true })
-      await runMarp(['--pdf', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath])
+      await runMarp(['--pdf', '--allow-local-files', ctx.inputPath, ...ctx.themeArgs, '-o', outputPath])
       new Notice(`[Marpidian] PDF exporté dans ${settings.exportDir}/${activeFile.basename}.pdf`)
     } catch (e: any) {
       new Notice(`[Marpidian] Échec de l'export PDF : ${e?.stderr ?? e?.message ?? e}`)
@@ -154,7 +156,7 @@ export class MarpPreviewView extends ItemView {
           .map(f => unlink(join(outputDir, f)).catch(() => {}))
       )
 
-      await runMarp(['--images', 'png', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'])
+      await runMarp(['--images', 'png', '--allow-local-files', ctx.inputPath, ...ctx.themeArgs, '-o', outputBase + '.png'])
 
       // Renommer basename.001.png → 1.png, basename.002.png → 2.png, etc.
       const generated = (await readdir(outputDir))
