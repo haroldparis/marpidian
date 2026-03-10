@@ -100,7 +100,7 @@ export class MarpPreviewView extends ItemView {
     new Notice('[Marpidian] Export PDF en cours...')
     try {
       await mkdir(join(ctx.vaultBase, settings.exportDir), { recursive: true })
-      await execFileAsync('marp', ['--pdf', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath], MARP_EXEC_OPTIONS)
+      await execFileAsync('marp', ['--pdf', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath], MARP_EXEC_OPTIONS)
       new Notice(`[Marpidian] PDF exporté dans ${settings.exportDir}/${activeFile.basename}.pdf`)
     } catch (e: any) {
       new Notice(`[Marpidian] Échec de l'export PDF : ${e?.stderr ?? e?.message ?? e}`)
@@ -135,7 +135,7 @@ export class MarpPreviewView extends ItemView {
           .map(f => unlink(join(outputDir, f)).catch(() => {}))
       )
 
-      await execFileAsync('marp', ['--images', 'png', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'], MARP_EXEC_OPTIONS)
+      await execFileAsync('marp', ['--images', 'png', '--no-sandbox', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'], MARP_EXEC_OPTIONS)
 
       // Renommer basename.001.png → 1.png, basename.002.png → 2.png, etc.
       const generated = (await readdir(outputDir))
