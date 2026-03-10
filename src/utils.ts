@@ -54,23 +54,66 @@ function resolveRelative(fileDir: string, href: string): string {
 }
 
 /**
- * Détecte les références d'images Markdown pointant hors du vault.
+ * Vérifie si un href pointe hors du vault.
+ * Utilisée par hasOutOfVaultImageRef pour éviter la duplication de la logique
+ * entre la syntaxe Markdown et les balises HTML.
+ */
+function isOutOfVaultHref(href: string, vaultBase: string, fileDir: string): boolean {
+  if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('data:')) return false
+  if (href.startsWith('/') || href.startsWith('file://') || href.startsWith('~')) return true
+  const resolved = resolveRelative(fileDir, href)
+  return !resolved.startsWith(vaultBase + '/') && resolved !== vaultBase
+}
+
+/**
+ * Détecte les références de ressources locales pointant hors du vault.
  * Protège contre la divulgation de fichiers locaux via --allow-local-files.
- * Note : les balises <img> HTML (avec Marp html:true) ne sont pas couvertes.
+ *
+ * Couvre sept syntaxes (Marp html:true honore le HTML embarqué dans les slides) :
+ * - Markdown : ![alt](url)
+ * - HTML : <img src="...">
+ * - HTML : <object data="..."> — Chrome rend le contenu texte brut inline dans le PDF
+ * - HTML : <embed src="..."> — même comportement que <object>
+ * - HTML : <video src>, <audio src>, <source src> — accès fichier lors du rendu Chromium
+ *
+ * Vecteur d'attaque : une note Marp partagée contenant <object data="/etc/shadow">
+ * ou <img src="../../.ssh/id_rsa"> serait exportée via --allow-local-files,
+ * incorporant le contenu du fichier local dans le PDF sans que l'utilisateur le sache.
  */
 export function hasOutOfVaultImageRef(
   markdown: string,
   vaultBase: string,
   fileDir: string
 ): boolean {
-  const imgRegex = /!\[.*?\]\(([^)\s]+)/g
-  let match: RegExpExecArray | null
-  while ((match = imgRegex.exec(markdown)) !== null) {
-    const href = match[1]
-    if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('data:')) continue
-    if (href.startsWith('/') || href.startsWith('file://') || href.startsWith('~')) return true
-    const resolved = resolveRelative(fileDir, href)
-    if (!resolved.startsWith(vaultBase + '/') && resolved !== vaultBase) return true
+  // Syntaxe Markdown : ![alt](url)
+  for (const m of markdown.matchAll(/!\[.*?\]\(([^)\s]+)/g)) {
+    if (isOutOfVaultHref(m[1], vaultBase, fileDir)) return true
   }
+
+  // <img src="..."> — échoue pour les fichiers non-image, mais tente quand même l'accès.
+  for (const m of markdown.matchAll(/<img\b[^>]*?\bsrc=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi)) {
+    const href = m[1] ?? m[2] ?? m[3]
+    if (href && isOutOfVaultHref(href, vaultBase, fileDir)) return true
+  }
+
+  // <object data="..."> — Chrome rend les fichiers texte en clair inline dans le PDF.
+  for (const m of markdown.matchAll(/<object\b[^>]*?\bdata=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi)) {
+    const href = m[1] ?? m[2] ?? m[3]
+    if (href && isOutOfVaultHref(href, vaultBase, fileDir)) return true
+  }
+
+  // <embed src="..."> — même comportement que <object data> pour les fichiers locaux.
+  for (const m of markdown.matchAll(/<embed\b[^>]*?\bsrc=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi)) {
+    const href = m[1] ?? m[2] ?? m[3]
+    if (href && isOutOfVaultHref(href, vaultBase, fileDir)) return true
+  }
+
+  // <video src>, <audio src>, <source src> — Chromium accède aux fichiers locaux
+  // lors du rendu PDF même si le contenu media n'est pas directement intégré.
+  for (const m of markdown.matchAll(/<(?:video|audio|source)\b[^>]*?\bsrc=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi)) {
+    const href = m[1] ?? m[2] ?? m[3]
+    if (href && isOutOfVaultHref(href, vaultBase, fileDir)) return true
+  }
+
   return false
 }

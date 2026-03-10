@@ -131,4 +131,72 @@ describe('hasOutOfVaultImageRef', () => {
   it('retourne false si pas d\'image dans le markdown', () => {
     expect(hasOutOfVaultImageRef('# Titre\n\nDu texte.', vault, fileDir)).toBe(false)
   })
+
+  // Balises HTML <img src> — vecteur d'attaque possible avec Marp html:true
+  it('retourne true pour <img src> pointant vers un chemin absolu', () => {
+    expect(hasOutOfVaultImageRef('<img src="/etc/passwd">', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour <img src> avec chemin ~/', () => {
+    expect(hasOutOfVaultImageRef('<img src="~/.ssh/id_rsa">', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour <img src> avec traversal hors vault', () => {
+    expect(hasOutOfVaultImageRef('<img src="../../.ssh/id_rsa">', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne false pour <img src> avec image relative dans le vault', () => {
+    expect(hasOutOfVaultImageRef('<img src="image.png">', vault, fileDir)).toBe(false)
+  })
+
+  it('retourne false pour <img src> avec URL https', () => {
+    expect(hasOutOfVaultImageRef('<img src="https://example.com/img.png">', vault, fileDir)).toBe(false)
+  })
+
+  it('retourne true pour <img src> avec guillemets simples hors vault', () => {
+    expect(hasOutOfVaultImageRef("<img src='/etc/passwd'>", vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour <IMG SRC> en majuscules (insensible à la casse)', () => {
+    expect(hasOutOfVaultImageRef('<IMG SRC="/etc/shadow">', vault, fileDir)).toBe(true)
+  })
+
+  // <object data> — Chrome rend les fichiers texte brut inline dans le PDF exporté
+  it('retourne true pour <object data> pointant vers un chemin absolu', () => {
+    expect(hasOutOfVaultImageRef('<object data="/etc/passwd"></object>', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour <object data> avec traversal hors vault', () => {
+    expect(hasOutOfVaultImageRef('<object data="../../.ssh/id_rsa"></object>', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne false pour <object data> avec fichier dans le vault', () => {
+    expect(hasOutOfVaultImageRef('<object data="diagram.pdf"></object>', vault, fileDir)).toBe(false)
+  })
+
+  // <embed src> — même vecteur que <object data>
+  it('retourne true pour <embed src> pointant vers un chemin absolu', () => {
+    expect(hasOutOfVaultImageRef('<embed src="/etc/shadow">', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne false pour <embed src> avec fichier dans le vault', () => {
+    expect(hasOutOfVaultImageRef('<embed src="video.mp4">', vault, fileDir)).toBe(false)
+  })
+
+  // <video>, <audio>, <source> — Chromium accède aux fichiers locaux lors du rendu PDF
+  it('retourne true pour <video src> pointant vers un chemin absolu', () => {
+    expect(hasOutOfVaultImageRef('<video src="/etc/passwd"></video>', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour <audio src> avec traversal hors vault', () => {
+    expect(hasOutOfVaultImageRef('<audio src="../../.ssh/id_rsa"></audio>', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne true pour <source src> pointant vers un chemin absolu', () => {
+    expect(hasOutOfVaultImageRef('<source src="/etc/shadow">', vault, fileDir)).toBe(true)
+  })
+
+  it('retourne false pour <video src> avec fichier dans le vault', () => {
+    expect(hasOutOfVaultImageRef('<video src="presentation.mp4"></video>', vault, fileDir)).toBe(false)
+  })
 })

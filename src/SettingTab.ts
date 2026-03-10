@@ -119,7 +119,7 @@ export class MarpidianSettingTab extends PluginSettingTab {
     // — Debug logging —
     new Setting(containerEl)
       .setName('Debug logging')
-      .setDesc("Écrit les événements d'export dans /tmp/marpidian.log.")
+      .setDesc("Écrit les événements d'export dans le dossier du plugin (debug.log).")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.debugLog)
