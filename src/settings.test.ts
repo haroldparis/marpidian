@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, mergeSettings } from './settings'
 
 describe('DEFAULT_SETTINGS', () => {
@@ -38,7 +38,9 @@ describe('mergeSettings', () => {
   })
 
   it('utilise exportDir sauvegardé si string', () => {
-    expect(mergeSettings({ exportDir: 'my-exports' }).exportDir).toBe('my-exports')
+    expect(mergeSettings({ exportDir: 'my-exports' }).exportDir).toBe(
+      'my-exports'
+    )
   })
 
   it('utilise la valeur par défaut si exportDir absent', () => {

@@ -1,11 +1,16 @@
-import { Plugin, MarkdownView, Notice, TFile, FileView } from 'obsidian'
-import { spawnSync } from 'child_process'
+import { spawnSync } from 'node:child_process'
+import { FileView, MarkdownView, Notice, Plugin, type TFile } from 'obsidian'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
-import { MarpidianSettingTab } from './settings'
-import { Themes } from './Themes'
-import { detectMarpDocument, debounce, extractThemeName, getVaultBasePath } from './utils'
-import { mergeSettings } from './settings'
+import { MarpidianSettingTab } from './SettingTab'
 import type { MarpidianSettings } from './settings'
+import { mergeSettings } from './settings'
+import { Themes } from './Themes'
+import {
+  debounce,
+  detectMarpDocument,
+  extractThemeName,
+  getVaultBasePath,
+} from './utils'
 
 export default class MarpidianPlugin extends Plugin {
   settings: MarpidianSettings
@@ -28,9 +33,20 @@ export default class MarpidianPlugin extends Plugin {
 
     await this.loadThemes()
 
-    this.marpCliAvailable = spawnSync('marp', ['--version'], { timeout: 2000, stdio: 'ignore' }).status === 0
+    this.marpCliAvailable =
+      spawnSync('marp', ['--version'], { timeout: 2000, stdio: 'ignore' })
+        .status === 0
 
-    this.registerView(VIEW_TYPE_MARP, (leaf) => new MarpPreviewView(leaf, this.themes, () => this.settings, this.marpCliAvailable))
+    this.registerView(
+      VIEW_TYPE_MARP,
+      (leaf) =>
+        new MarpPreviewView(
+          leaf,
+          this.themes,
+          () => this.settings,
+          this.marpCliAvailable
+        )
+    )
 
     this.addCommand({
       id: 'toggle-marp-preview',
@@ -38,13 +54,20 @@ export default class MarpidianPlugin extends Plugin {
       callback: () => this.togglePreview(),
     })
 
-    this.registerEvent(
-      this.app.workspace.on('active-leaf-change', () => this.onActiveLeafChange())
-    )
+    this.app.workspace.onLayoutReady(() => {
+      this.registerEvent(
+        this.app.workspace.on('active-leaf-change', () =>
+          this.onActiveLeafChange()
+        )
+      )
 
-    this.registerEvent(
-      this.app.workspace.on('editor-change', debounce(() => this.onEditorChange(), 300))
-    )
+      this.registerEvent(
+        this.app.workspace.on(
+          'editor-change',
+          debounce(() => this.onEditorChange(), 300)
+        )
+      )
+    })
 
     this.addSettingTab(new MarpidianSettingTab(this.app, this))
   }
@@ -58,7 +81,8 @@ export default class MarpidianPlugin extends Plugin {
     if (reloadThemes) {
       await this.loadThemes()
       const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
-      if (activeView) this.updatePreview(activeView.editor.getValue(), activeView.file)
+      if (activeView)
+        this.updatePreview(activeView.editor.getValue(), activeView.file)
     }
   }
 
@@ -75,7 +99,9 @@ export default class MarpidianPlugin extends Plugin {
       const themeName = extractThemeName(css)
 
       if (!themeName) {
-        new Notice('[Marpidian] Ce fichier CSS ne contient pas de directive @theme.')
+        new Notice(
+          '[Marpidian] Ce fichier CSS ne contient pas de directive @theme.'
+        )
         return
       }
 
@@ -86,7 +112,7 @@ export default class MarpidianPlugin extends Plugin {
       }
 
       const destPath = `${this.settings.themesFolder}/${file.name}`
-      const existingPaths = this.settings.themes.map(t => t.path)
+      const existingPaths = this.settings.themes.map((t) => t.path)
       if (existingPaths.includes(destPath)) {
         new Notice(`[Marpidian] Le fichier "${file.name}" est déjà importé.`)
         return
@@ -116,9 +142,9 @@ export default class MarpidianPlugin extends Plugin {
     const absPath = `${basePath}/${this.settings.themesFolder}`
     const { shell } = require('electron') as typeof import('electron')
     const error = await shell.openPath(absPath)
-    if (error) new Notice(`[Marpidian] Impossible d'ouvrir le dossier : ${error}`)
+    if (error)
+      new Notice(`[Marpidian] Impossible d'ouvrir le dossier : ${error}`)
   }
-
 
   private async getInstalledThemeNames(): Promise<string[]> {
     const names: string[] = []
@@ -136,6 +162,12 @@ export default class MarpidianPlugin extends Plugin {
 
   private async loadThemes(): Promise<void> {
     this.themes.dispose()
+    // Recâbler le callback de hot-reload après chaque dispose/reload
+    this.themes.setOnUpdate(() => {
+      const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
+      if (activeView)
+        this.updatePreview(activeView.editor.getValue(), activeView.file)
+    })
     for (const entry of this.settings.themes) {
       try {
         await this.themes.loadTheme(entry.path)
@@ -158,7 +190,7 @@ export default class MarpidianPlugin extends Plugin {
 
     if (activeView instanceof MarkdownView) {
       const content = activeView.editor.getValue()
-      const file = activeView.file  // capturé avant le await pour éviter la race condition
+      const file = activeView.file // capturé avant le await pour éviter la race condition
       if (detectMarpDocument(content)) {
         await this.openPreview()
         this.updatePreview(content, file)
@@ -167,7 +199,9 @@ export default class MarpidianPlugin extends Plugin {
     }
 
     // FileView non-Marp (autre .md, .base, image, PDF…) → fermer la pane
-    this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => leaf.detach())
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => {
+      leaf.detach()
+    })
   }
 
   private onEditorChange(): void {
@@ -191,7 +225,9 @@ export default class MarpidianPlugin extends Plugin {
   private async togglePreview(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP)
     if (existing.length > 0) {
-      existing.forEach((leaf) => leaf.detach())
+      existing.forEach((leaf) => {
+        leaf.detach()
+      })
     } else {
       await this.openPreview()
     }

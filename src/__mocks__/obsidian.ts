@@ -20,7 +20,9 @@ export class Plugin {
     this.app = app
     this.manifest = manifest
   }
-  async loadData(): Promise<any> { return {} }
+  async loadData(): Promise<any> {
+    return {}
+  }
   async saveData(_data: any): Promise<void> {}
   registerEvent(_event: any): void {}
   addCommand(_command: any): void {}
@@ -37,8 +39,12 @@ export class ItemView {
     this.app = leaf.app
     this.contentEl = document.createElement('div')
   }
-  getViewType(): string { return '' }
-  getDisplayText(): string { return '' }
+  getViewType(): string {
+    return ''
+  }
+  getDisplayText(): string {
+    return ''
+  }
   async onOpen(): Promise<void> {}
   async onClose(): Promise<void> {}
 }
@@ -57,16 +63,25 @@ export class PluginSettingTab {
 }
 
 export class Setting {
-  constructor(_containerEl: HTMLElement) {}
-  setName(_name: string): this { return this }
-  setDesc(_desc: string): this { return this }
-  addText(_cb: (text: any) => any): this { return this }
-  addButton(_cb: (btn: any) => any): this { return this }
+  setName(_name: string): this {
+    return this
+  }
+  setDesc(_desc: string): this {
+    return this
+  }
+  addText(_cb: (text: any) => any): this {
+    return this
+  }
+  addButton(_cb: (btn: any) => any): this {
+    return this
+  }
 }
 
 export class WorkspaceLeaf {
   app: App
-  constructor(app: App) { this.app = app }
+  constructor(app: App) {
+    this.app = app
+  }
 }
 
 export interface App {
@@ -79,7 +94,10 @@ export interface Vault {
   read(file: TFile): Promise<string>
   on(event: string, cb: (...args: any[]) => any): EventRef
   offref(ref: EventRef): void
-  adapter: { read(path: string): Promise<string>; remove(path: string): Promise<void> }
+  adapter: {
+    read(path: string): Promise<string>
+    remove(path: string): Promise<void>
+  }
 }
 
 export interface Workspace {

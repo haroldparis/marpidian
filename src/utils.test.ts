@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { detectMarpDocument, debounce, extractThemeName } from './utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { debounce, detectMarpDocument, extractThemeName } from './utils'
 
 describe('detectMarpDocument', () => {
   it('retourne true si marp: true est dans le frontmatter', () => {
@@ -32,15 +32,19 @@ describe('detectMarpDocument', () => {
     expect(detectMarpDocument(md)).toBe(true)
   })
 
-  it("retourne false si marp: \"false\" (string)", () => {
+  it('retourne false si marp: "false" (string)', () => {
     const md = '---\nmarp: "false"\n---\n\n# Note'
     expect(detectMarpDocument(md)).toBe(false)
   })
 })
 
 describe('debounce', () => {
-  beforeEach(() => { vi.useFakeTimers() })
-  afterEach(() => { vi.useRealTimers() })
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
   it("n'appelle la fonction qu'une fois après le délai", () => {
     const fn = vi.fn()

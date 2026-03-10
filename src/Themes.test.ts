@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Themes } from './Themes'
 
 describe('Themes', () => {
   let readFile: (path: string) => Promise<string>
-  let onFileChange: (path: string, cb: () => void) => (() => void)
+  let onFileChange: (path: string, cb: () => void) => () => void
 
   beforeEach(() => {
     readFile = vi.fn().mockImplementation(async (path: string) => {
@@ -31,7 +31,10 @@ describe('Themes', () => {
   it('enregistre un watcher sur le fichier CSS', async () => {
     const themes = new Themes(readFile, onFileChange)
     await themes.loadTheme('themes/test-theme.css')
-    expect(onFileChange).toHaveBeenCalledWith('themes/test-theme.css', expect.any(Function))
+    expect(onFileChange).toHaveBeenCalledWith(
+      'themes/test-theme.css',
+      expect.any(Function)
+    )
   })
 
   it('charge plusieurs thèmes indépendamment', async () => {
@@ -54,7 +57,7 @@ describe('Themes', () => {
 
     expect(readFile).toHaveBeenCalledTimes(1)
     changeCallback?.()
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
     expect(readFile).toHaveBeenCalledTimes(2)
   })
 
