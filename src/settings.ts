@@ -77,7 +77,7 @@ export class MarpidianSettingTab extends PluginSettingTab {
     // — Dossier des thèmes —
     new Setting(containerEl)
       .setName('Dossier des thèmes')
-      .setDesc('Chemin relatif depuis la racine du vault.')
+      .setDesc('Dossier cible pour les nouveaux imports (les thèmes existants ne sont pas déplacés).')
       .addText((text) =>
         text
           .setPlaceholder('.marpidian')
@@ -110,11 +110,6 @@ export class MarpidianSettingTab extends PluginSettingTab {
         .setName(name)
         .setDesc(entry.path)
         .addButton((btn) => {
-          btn.setTooltip("Ouvrir dans l'éditeur")
-          setIcon(btn.buttonEl, 'pencil')
-          btn.onClick(() => this.plugin.openThemeInEditor(entry.path))
-        })
-        .addButton((btn) => {
           btn.setTooltip('Supprimer')
           setIcon(btn.buttonEl, 'trash')
           btn.setWarning()
@@ -143,7 +138,7 @@ export class MarpidianSettingTab extends PluginSettingTab {
       btn
         .setButtonText('Importer un thème')
         .setCta()
-        .onClick(() => this.plugin.importTheme())
+        .onClick(() => this.plugin.importTheme(() => this.display()))
     )
   }
 
