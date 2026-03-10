@@ -1,4 +1,4 @@
-import { Plugin, MarkdownView, Notice, TFile } from 'obsidian'
+import { Plugin, MarkdownView, Notice, TFile, FileView } from 'obsidian'
 import { spawnSync } from 'child_process'
 import { MarpPreviewView, VIEW_TYPE_MARP } from './MarpPreviewView'
 import { MarpidianSettingTab } from './settings'
@@ -146,13 +146,17 @@ export default class MarpidianPlugin extends Plugin {
   }
 
   private async onActiveLeafChange(): Promise<void> {
-    // Si c'est la vue Marpidian elle-même qui passe en focus, ne pas agir :
-    // l'utilisateur interagit avec la preview (ex. boutons d'export).
-    const activeLeafType = this.app.workspace.activeLeaf?.view?.getViewType()
-    if (activeLeafType === VIEW_TYPE_MARP) return
+    const activeView = this.app.workspace.activeLeaf?.view
 
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
-    if (activeView) {
+    // Ignorer les panneaux qui ne représentent pas un fichier ouvert
+    // (explorateur, recherche, tags, outline…) : ils ne sont pas des FileView.
+    if (!(activeView instanceof FileView)) return
+
+    // Si c'est la vue Marpidian elle-même, ne pas agir :
+    // l'utilisateur interagit avec la preview (ex. boutons d'export).
+    if (activeView.getViewType() === VIEW_TYPE_MARP) return
+
+    if (activeView instanceof MarkdownView) {
       const content = activeView.editor.getValue()
       const file = activeView.file  // capturé avant le await pour éviter la race condition
       if (detectMarpDocument(content)) {
@@ -162,7 +166,7 @@ export default class MarpidianPlugin extends Plugin {
       }
     }
 
-    // Pas de MarkdownView Marp active (autre .md, .base, image, PDF…) → fermer la pane
+    // FileView non-Marp (autre .md, .base, image, PDF…) → fermer la pane
     this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => leaf.detach())
   }
 
