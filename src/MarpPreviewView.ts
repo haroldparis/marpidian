@@ -5,6 +5,10 @@ import { join } from 'path'
 import type { Themes } from './Themes'
 import type { MarpidianSettings } from './settings'
 
+// Dimensions d'une slide Marp 16:9 en micromètres (unité Chromium : 1 in = 25400 µm)
+const SLIDE_WIDTH_UM = 338667   // ≈ 33.87 cm
+const SLIDE_HEIGHT_UM = 190500  // ≈ 19.05 cm
+
 export const VIEW_TYPE_MARP = 'marpidian-preview'
 
 export class MarpPreviewView extends ItemView {
@@ -97,30 +101,32 @@ export class MarpPreviewView extends ItemView {
       await writeFile(tmpPath, this.buildExportHtml(), 'utf-8')
 
       const win = new BrowserWindow({ show: false, width: 1280, height: 720 })
-      await win.loadURL(`file://${tmpPath}`)
-
-      const pdfBuffer = await win.webContents.printToPDF({
-        printBackground: true,
-        pageSize: { width: 338667, height: 190500 },
-      })
-      win.destroy()
-
-      const result = await dialog.showSaveDialog({
-        defaultPath: 'presentation.pdf',
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      })
-
-      if (!result.canceled && result.filePath) {
-        await writeFile(result.filePath, pdfBuffer)
-        new Notice('[Marpidian] PDF exporté.')
+      try {
+        await win.loadURL(`file://${tmpPath}`)
+        const pdfBuffer = await win.webContents.printToPDF({
+          printBackground: true,
+          pageSize: { width: SLIDE_WIDTH_UM, height: SLIDE_HEIGHT_UM },
+        })
+        const result = await dialog.showSaveDialog({
+          defaultPath: 'presentation.pdf',
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        })
+        if (!result.canceled && result.filePath) {
+          await writeFile(result.filePath, pdfBuffer)
+          new Notice('[Marpidian] PDF exporté.')
+        }
+      } finally {
+        win.destroy()
       }
+    } catch (e: any) {
+      new Notice(`[Marpidian] Échec de l'export PDF : ${e?.message ?? e}`)
     } finally {
       await unlink(tmpPath).catch(() => {})
     }
   }
 
   private async exportPng(): Promise<void> {
-    new Notice('[Marpidian] Export PNG — bientôt disponible.')
+    new Notice('[Marpidian] Export PNG : bientôt disponible.')
   }
 
   private render(): void {
