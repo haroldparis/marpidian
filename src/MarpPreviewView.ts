@@ -9,7 +9,8 @@ import { getVaultBasePath } from './utils'
 
 const LOG_FILE = join(tmpdir(), 'marpidian.log')
 
-function log(msg: string): void {
+function log(enabled: boolean, msg: string): void {
+  if (!enabled) return
   const line = `[${new Date().toISOString()}] ${msg}\n`
   appendFile(LOG_FILE, line).catch(() => {})
 }
@@ -18,8 +19,8 @@ function log(msg: string): void {
  * Exécute marp CLI avec stdin ignoré (évite le blocage sur stdin pipe).
  * Rejette avec le contenu stderr si marp sort avec un code non nul.
  */
-function runMarp(args: string[]): Promise<void> {
-  log(`runMarp: marp ${args.join(' ')}`)
+function runMarp(args: string[], debug: boolean): Promise<void> {
+  log(debug, `runMarp: marp ${args.join(' ')}`)
   return new Promise((resolve, reject) => {
     const child = spawn('marp', args, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -33,13 +34,13 @@ function runMarp(args: string[]): Promise<void> {
     child.on('close', (code) => {
       clearTimeout(timer)
       const errText = stderr.join('').trim()
-      if (errText) log(`runMarp stderr: ${errText}`)
-      if (code === 0) { log('runMarp: succès'); resolve() }
+      if (errText) log(debug, `runMarp stderr: ${errText}`)
+      if (code === 0) { log(debug, 'runMarp: succès'); resolve() }
       else reject(new Error(errText || `marp a retourné le code ${code}`))
     })
     child.on('error', (err) => {
       clearTimeout(timer)
-      log(`runMarp error: ${err.message}`)
+      log(debug, `runMarp error: ${err.message}`)
       reject(err)
     })
   })
@@ -118,11 +119,11 @@ export class MarpPreviewView extends ItemView {
   }
 
   private async exportPdf(): Promise<void> {
-    log(`exportPdf: exporting=${this.exporting} currentFile=${this.currentFile?.path ?? 'null'}`)
+    log(this.getSettings().debugLog, `exportPdf: exporting=${this.exporting} currentFile=${this.currentFile?.path ?? 'null'}`)
     if (this.exporting) { new Notice('[Marpidian] Export déjà en cours.'); return }
     const ctx = this.marpArgs()
     if (!ctx) {
-      log('exportPdf: marpArgs() null')
+      log(this.getSettings().debugLog, 'exportPdf: marpArgs() null')
       new Notice(`[Marpidian] Aucun fichier actif. (currentFile=${this.currentFile?.path ?? 'null'})`)
       return
     }
@@ -132,16 +133,16 @@ export class MarpPreviewView extends ItemView {
     const outputDir = join(ctx.vaultBase, settings.exportDir, activeFile.basename)
     const outputPath = join(outputDir, activeFile.basename + '.pdf')
 
-    log(`exportPdf: outputPath=${outputPath}`)
+    log(this.getSettings().debugLog, `exportPdf: outputPath=${outputPath}`)
     this.exporting = true
     new Notice('[Marpidian] Export PDF en cours...')
     try {
       await mkdir(outputDir, { recursive: true })
-      await runMarp(['--pdf', '--allow-local-files', ctx.inputPath, ...ctx.themeArgs, '-o', outputPath])
-      log('exportPdf: terminé avec succès')
+      await runMarp(['--pdf', '--allow-local-files', ctx.inputPath, ...ctx.themeArgs, '-o', outputPath], settings.debugLog)
+      log(this.getSettings().debugLog, 'exportPdf: terminé avec succès')
       new Notice(`[Marpidian] PDF exporté dans ${settings.exportDir}/${activeFile.basename}/${activeFile.basename}.pdf`)
     } catch (e: any) {
-      log(`exportPdf: erreur — ${e?.message ?? e}`)
+      log(this.getSettings().debugLog, `exportPdf: erreur — ${e?.message ?? e}`)
       new Notice(`[Marpidian] Échec de l'export PDF : ${e?.message ?? e}`)
     } finally {
       this.exporting = false
@@ -149,11 +150,11 @@ export class MarpPreviewView extends ItemView {
   }
 
   private async exportPng(): Promise<void> {
-    log(`exportPng: exporting=${this.exporting} currentFile=${this.currentFile?.path ?? 'null'}`)
+    log(this.getSettings().debugLog, `exportPng: exporting=${this.exporting} currentFile=${this.currentFile?.path ?? 'null'}`)
     if (this.exporting) { new Notice('[Marpidian] Export déjà en cours.'); return }
     const ctx = this.marpArgs()
     if (!ctx) {
-      log('exportPng: marpArgs() null')
+      log(this.getSettings().debugLog, 'exportPng: marpArgs() null')
       new Notice('[Marpidian] Aucun fichier actif.')
       return
     }
@@ -176,7 +177,7 @@ export class MarpPreviewView extends ItemView {
           .map(f => unlink(join(outputDir, f)).catch(() => {}))
       )
 
-      await runMarp(['--images', 'png', '--allow-local-files', ctx.inputPath, ...ctx.themeArgs, '-o', outputBase + '.png'])
+      await runMarp(['--images', 'png', '--allow-local-files', ctx.inputPath, ...ctx.themeArgs, '-o', outputBase + '.png'], settings.debugLog)
 
       // Renommer basename.001.png → 1.png, basename.002.png → 2.png, etc.
       const generated = (await readdir(outputDir))
@@ -186,10 +187,10 @@ export class MarpPreviewView extends ItemView {
         generated.map((f, i) => rename(join(outputDir, f), join(outputDir, `${i + 1}.png`)))
       )
 
-      log(`exportPng: terminé — ${generated.length} slide(s)`)
+      log(this.getSettings().debugLog, `exportPng: terminé — ${generated.length} slide(s)`)
       new Notice(`[Marpidian] ${generated.length} slide(s) exportée(s) dans ${settings.exportDir}/${activeFile.basename}/`)
     } catch (e: any) {
-      log(`exportPng: erreur — ${e?.message ?? e}`)
+      log(this.getSettings().debugLog, `exportPng: erreur — ${e?.message ?? e}`)
       new Notice(`[Marpidian] Échec de l'export PNG : ${e?.message ?? e}`)
     } finally {
       this.exporting = false

@@ -6,12 +6,14 @@ export interface MarpidianSettings {
   themes: ThemeEntry[]
   themesFolder: string
   exportDir: string
+  debugLog: boolean
 }
 
 export const DEFAULT_SETTINGS: MarpidianSettings = {
   themes: [],
   themesFolder: '.marpidian',
   exportDir: '.marpidian-exports',
+  debugLog: false,
 }
 
 export function mergeSettings(saved: Partial<MarpidianSettings>): MarpidianSettings {
@@ -19,6 +21,7 @@ export function mergeSettings(saved: Partial<MarpidianSettings>): MarpidianSetti
     themes: Array.isArray(saved.themes) ? saved.themes : DEFAULT_SETTINGS.themes,
     themesFolder: typeof saved.themesFolder === 'string' ? saved.themesFolder : DEFAULT_SETTINGS.themesFolder,
     exportDir: typeof saved.exportDir === 'string' ? saved.exportDir : DEFAULT_SETTINGS.exportDir,
+    debugLog: typeof saved.debugLog === 'boolean' ? saved.debugLog : DEFAULT_SETTINGS.debugLog,
   }
 }
 
@@ -120,6 +123,19 @@ export class MarpidianSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.exportDir)
           .onChange(async (value) => {
             this.plugin.settings.exportDir = value.trim() || '.marpidian-exports'
+            await this.plugin.saveSettings(false)
+          })
+      )
+
+    // — Debug logging —
+    new Setting(containerEl)
+      .setName('Debug logging')
+      .setDesc('Écrit les événements d\'export dans /tmp/marpidian.log.')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.debugLog)
+          .onChange(async (value) => {
+            this.plugin.settings.debugLog = value
             await this.plugin.saveSettings(false)
           })
       )

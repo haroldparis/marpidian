@@ -146,17 +146,24 @@ export default class MarpidianPlugin extends Plugin {
   }
 
   private async onActiveLeafChange(): Promise<void> {
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
-    if (!activeView) return
+    // Si c'est la vue Marpidian elle-même qui passe en focus, ne pas agir :
+    // l'utilisateur interagit avec la preview (ex. boutons d'export).
+    const activeLeafType = this.app.workspace.activeLeaf?.view?.getViewType()
+    if (activeLeafType === VIEW_TYPE_MARP) return
 
-    const content = activeView.editor.getValue()
-    const file = activeView.file  // capturé avant le await pour éviter la race condition
-    if (detectMarpDocument(content)) {
-      await this.openPreview()
-      this.updatePreview(content, file)
-    } else {
-      this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => leaf.detach())
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
+    if (activeView) {
+      const content = activeView.editor.getValue()
+      const file = activeView.file  // capturé avant le await pour éviter la race condition
+      if (detectMarpDocument(content)) {
+        await this.openPreview()
+        this.updatePreview(content, file)
+        return
+      }
     }
+
+    // Pas de MarkdownView Marp active (autre .md, .base, image, PDF…) → fermer la pane
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_MARP).forEach((leaf) => leaf.detach())
   }
 
   private onEditorChange(): void {
