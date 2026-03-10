@@ -16,6 +16,7 @@ const buildOptions = {
     '@codemirror/*',
     '@lezer/*',
     ...builtins,
+    ...builtins.map((m) => `node:${m}`),
   ],
   format: 'cjs',
   platform: 'browser',
