@@ -9,6 +9,10 @@ import type { MarpidianSettings } from './settings'
 const SLIDE_WIDTH_UM = 338667   // ≈ 33.87 cm
 const SLIDE_HEIGHT_UM = 190500  // ≈ 19.05 cm
 
+// Dimensions d'une slide Marp 16:9 en pixels
+const SLIDE_WIDTH_PX = 1280
+const SLIDE_HEIGHT_PX = 720
+
 export const VIEW_TYPE_MARP = 'marpidian-preview'
 
 export class MarpPreviewView extends ItemView {
@@ -143,6 +147,7 @@ export class MarpPreviewView extends ItemView {
     const settings = this.getSettings()
     const activeFile = this.app.workspace.getActiveFile()
     const basename = activeFile?.basename ?? 'untitled'
+    // FileSystemAdapter (desktop) expose basePath — non typé dans l'API publique d'Obsidian
     const adapter = this.app.vault.adapter as any
     const vaultBase: string = adapter.basePath ?? adapter.getBasePath?.() ?? ''
 
@@ -158,26 +163,28 @@ export class MarpPreviewView extends ItemView {
       await mkdir(outputDir, { recursive: true })
       await writeFile(tmpPath, this.buildExportHtml(), 'utf-8')
 
-      const win = new BrowserWindow({ show: false, width: 1280, height: 720 })
+      const win = new BrowserWindow({ show: false, width: SLIDE_WIDTH_PX, height: SLIDE_HEIGHT_PX })
       try {
         await win.loadURL(`file://${tmpPath}`)
 
-        const slideCount: number = await win.webContents.executeJavaScript(
-          'document.querySelectorAll("section").length'
-        )
+        const rects = await win.webContents.executeJavaScript(`
+          Array.from(document.querySelectorAll('section')).map(s => {
+            const r = s.getBoundingClientRect()
+            return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) }
+          })
+        `) as { x: number; y: number; width: number; height: number }[]
 
-        if (slideCount === 0) {
+        if (rects.length === 0) {
           new Notice('[Marpidian] Aucune slide détectée.')
           return
         }
 
-        for (let i = 0; i < slideCount; i++) {
-          await win.webContents.executeJavaScript(`window.scrollTo(0, ${i * 720})`)
-          const image = await win.webContents.capturePage({ x: 0, y: 0, width: 1280, height: 720 })
+        for (let i = 0; i < rects.length; i++) {
+          const image = await win.webContents.capturePage(rects[i])
           await writeFile(join(outputDir, `${i + 1}.png`), image.toPNG())
         }
 
-        new Notice(`[Marpidian] ${slideCount} slide(s) exportée(s) dans ${settings.exportDir}/${basename}/`)
+        new Notice(`[Marpidian] ${rects.length} slide(s) exportée(s) dans ${settings.exportDir}/${basename}/`)
       } finally {
         win.destroy()
       }
