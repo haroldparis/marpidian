@@ -8,6 +8,11 @@ import type { MarpidianSettings } from './settings'
 import { getVaultBasePath } from './utils'
 
 const execFileAsync = promisify(execFile)
+const MARP_EXEC_OPTIONS = {
+  encoding: 'utf8' as const,
+  stdio: ['ignore', 'pipe', 'pipe'] as const,
+  timeout: 60_000,  // tue le process si marp CLI ne répond pas (ex. Chromium bloqué)
+}
 
 
 export const VIEW_TYPE_MARP = 'marpidian-preview'
@@ -80,10 +85,10 @@ export class MarpPreviewView extends ItemView {
   }
 
   private async exportPdf(): Promise<void> {
-    if (this.exporting) return
+    if (this.exporting) { new Notice('[Marpidian] Export déjà en cours.'); return }
     const ctx = this.marpArgs()
     if (!ctx) {
-      new Notice('[Marpidian] Aucun fichier actif.')
+      new Notice(`[Marpidian] Aucun fichier actif. (currentFile=${this.currentFile?.path ?? 'null'})`)
       return
     }
 
@@ -92,9 +97,10 @@ export class MarpPreviewView extends ItemView {
     const outputPath = join(ctx.vaultBase, settings.exportDir, activeFile.basename + '.pdf')
 
     this.exporting = true
+    new Notice('[Marpidian] Export PDF en cours...')
     try {
       await mkdir(join(ctx.vaultBase, settings.exportDir), { recursive: true })
-      await execFileAsync('marp', ['--pdf', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath], { encoding: 'utf8' })
+      await execFileAsync('marp', ['--pdf', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputPath], MARP_EXEC_OPTIONS)
       new Notice(`[Marpidian] PDF exporté dans ${settings.exportDir}/${activeFile.basename}.pdf`)
     } catch (e: any) {
       new Notice(`[Marpidian] Échec de l'export PDF : ${e?.stderr ?? e?.message ?? e}`)
@@ -117,6 +123,7 @@ export class MarpPreviewView extends ItemView {
     const outputBase = join(outputDir, activeFile.basename)
 
     this.exporting = true
+    new Notice('[Marpidian] Export PNG en cours...')
     try {
       await mkdir(outputDir, { recursive: true })
 
@@ -128,7 +135,7 @@ export class MarpPreviewView extends ItemView {
           .map(f => unlink(join(outputDir, f)).catch(() => {}))
       )
 
-      await execFileAsync('marp', ['--images', 'png', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'], { encoding: 'utf8' })
+      await execFileAsync('marp', ['--images', 'png', '--allow-local-files', ...ctx.themeArgs, ctx.inputPath, '-o', outputBase + '.png'], MARP_EXEC_OPTIONS)
 
       // Renommer basename.001.png → 1.png, basename.002.png → 2.png, etc.
       const generated = (await readdir(outputDir))
